@@ -1,0 +1,82 @@
+{
+  "AppConfig": {
+    // ---------------------------------------------------------
+    // GENERAL APP CONFIGURATION
+    // ---------------------------------------------------------
+    
+    // The local folder where Excel reports and logs will be saved.
+    "LogsDirectory": "C:\\Temp\\IT_Logs",
+    
+    // Default file paths for the bulk processing lists.
+    // Users can paste hostnames or IPs into these text files.
+    "DefaultComputerList": "C:\\Temp\\IT_Logs\\ComputerList.txt",
+    "DefaultUserList": "C:\\Temp\\IT_Logs\\UserList.txt",
+    
+    // The hidden temporary folder on the REMOTE machine used during PsExec script transfers.
+    "RemoteTempPath": "C:\\Temp"
+  },
+  
+  "ActiveDirectory": {
+    // ---------------------------------------------------------
+    // ACTIVE DIRECTORY ENVIRONMENT
+    // ---------------------------------------------------------
+    
+    // The FQDN (Fully Qualified Domain Name) of your network.
+    "DomainName": "your.ad.domain.com",
+    
+    // The specific Domain Controller you want to query/write to. 
+    // You can leave this identical to DomainName to let DNS route it.
+    "TargetServer": "your.ad.domain.com",
+    
+    // Define the different types of computers deployed in your environment.
+    // The app will generate UI dropdowns based on these keys.
+    "ComputerTypes": {
+      "ServiceComputer": {
+        "Prefix": "SVC", // Automatically prepended to the generated hostname (e.g., SVC0001)
+        "TargetOU": "OU=ServiceComputers,OU=YourDept,DC=your,DC=ad,DC=domain,DC=com",
+        "DefaultDescription": "service_prod"
+      },
+      "PersonalComputer": {
+        "Prefix": "PC",
+        "TargetOU": "OU=Workstations,OU=YourDept,DC=your,DC=ad,DC=domain,DC=com",
+        "DefaultDescription": ""
+      },
+      "Laptop": {
+        "Prefix": "LT",
+        "TargetOU": "OU=Laptops,OU=YourDept,DC=your,DC=ad,DC=domain,DC=com",
+        "DefaultDescription": ""
+      }
+    },
+    
+    // Security/Distribution groups that new computers should be automatically added to upon creation.
+    "DefaultDeploymentGroups": [
+      "Your-AD-Group-1",
+      "Your-AD-Group-2"
+    ],
+    
+    // Destination OUs for the "Critical Operations" move commands (e.g., revoking admin rights).
+    "SpecialOUs": {
+      "WifiNoAdmin": "OU=Wi-Fi-No-Admin,OU=YourDept,DC=your,DC=ad,DC=domain,DC=com",
+      "WorkstationNoAdmin": "OU=No-Admins,OU=Workstations,OU=YourDept,DC=your,DC=ad,DC=domain,DC=com"
+    },
+    
+    // Regular Expression used to validate hostnames in the ComputerList.txt before running commands.
+    // Default matches your prefixes followed by exactly 4 digits (e.g., SVC1234, LT9876).
+    "ComputerNamePattern": "^(SVC|PC|LT)\\d{4}$"
+  },
+  
+  "ExternalTools": {
+    // ---------------------------------------------------------
+    // EXTERNAL TOOLS & DEPENDENCIES
+    // ---------------------------------------------------------
+    
+    // Absolute path to the Sysinternals PsExec executable for remote shells.
+    "PsExecPath": "C:\\Windows\\PSTools\\PsExec.exe",
+    
+    // Absolute path to the Dameware Mini Remote Control executable.
+    "DamewarePath": "C:\\Program Files\\SolarWinds\\Dameware Mini Remote Control x64\\dwrcc.exe",
+    
+    // A network share containing batch/powershell scripts that admins can push to remote PCs.
+    "BatchScriptsLocation": "\\\\yourserver\\Share\\Scripts\\batch_scripts\\etc"
+  }
+}
