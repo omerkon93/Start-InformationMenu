@@ -1,33 +1,13 @@
 {
   "AppConfig": {
-    // ---------------------------------------------------------
-    // GENERAL APP CONFIGURATION
-    // ---------------------------------------------------------
-
-    // Local directory where reports (Excel) and validation logs are stored.
     "LogsDirectory": "C:\\Temp\\IT_Logs",
-
-    // Default source file for bulk computer operations.
     "DefaultComputerList": "C:\\Temp\\IT_Logs\\ComputerList.txt",
-
-    // Default source file for bulk user queries.
     "DefaultUserList": "C:\\Temp\\IT_Logs\\UserList.txt",
-
-    // The temporary staging folder on remote PCs used for script copying and execution.
     "RemoteTempPath": "C:\\Temp"
   },
   "ActiveDirectory": {
-    // ---------------------------------------------------------
-    // ACTIVE DIRECTORY ENVIRONMENT
-    // ---------------------------------------------------------
-
-    // The Fully Qualified Domain Name (FQDN) for your AD environment.
     "DomainName": "testlab.local",
-
-    // The specific server or domain endpoint used for AD queries and object moves.
-    "TargetServer": "169.254.118.84",
-
-    // Templates for creating new computer objects in AD based on their role.
+    "TargetServer": "testlab.local",
     "ComputerTypes": {
       "ServiceComputer": {
         "Prefix": "AF-W",
@@ -45,35 +25,20 @@
         "DefaultDescription": "Personal account laptop"
       }
     },
-
-    // Security groups that any newly created computer will be joined to by default.
     "DefaultDeploymentGroups": [
       "AF-DG-AntiVirus",
       "AF-DG-DesktopPolicy"
     ],
-
-    // Target Organizational Units (OUs) for administrative cleanup or restriction tasks.
     "SpecialOUs": {
       "Production": "OU=Production,OU=AF,DC=testlab,DC=local",
       "Personal": "OU=Workstations,OU=AF,DC=testlab,DC=local",
       "Mobile": "OU=Mobiles,OU=AF,DC=testlab,DC=local"
     },
-
-    // Regex pattern used to validate hostnames during list import to prevent errors.
     "ComputerNamePattern": "^AF-[WM]-\\d{4}$"
   },
   "ExternalTools": {
-    // ---------------------------------------------------------
-    // EXTERNAL TOOLS & DEPENDENCIES
-    // ---------------------------------------------------------
-
-    // Path to the Sysinternals PsExec executable for remote command execution.
-    "PsExecPath": "C:\\Windows\\PSTools\\PsExec.exe"//,
-
-    // Path to the Dameware Mini Remote Control executable.
-    //"DamewarePath": "C:\\Program Files\\SolarWinds\\Dameware Mini Remote Control x64\\dwrcc.exe",
-
-    // Central network location for storing batch scripts to be run remotely.
-    //"BatchScriptsLocation": "\\\\mignt002\\Public\\migomkon\\006_Scripts\\batch_scripts\\etc"
+    "PsExecPath": "C:\\Windows\\PSTools\\PsExec.exe",
+    "DamewarePath": "",
+    "BatchScriptsLocation": null
   }
 }

@@ -15,16 +15,12 @@ namespace AdminInfoTools
     {
         private readonly ConfigurationService _configService;
         private readonly SystemInfoService _systemInfoService;
+        private readonly CredentialService _credentialService;
         private ActiveDirectoryService _adService; 
         
         public ObservableCollection<ComputerInfoResult> ComputerResults { get; set; }
         public ObservableCollection<AdComputerInfoResult> AdComputerResults { get; set; }
         public ObservableCollection<AdUserInfoResult> UserResults { get; set; }
-        private List<string> _loadedUserNames;
-        private List<string> _loadedComputerNames;
-        private string _sessionUsername;
-        private string _sessionPassword;
-        private readonly string _credFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "credentials.dat");
         
 
         public MainWindow()
@@ -34,11 +30,10 @@ namespace AdminInfoTools
             // --- 2. INITIALIZE SERVICES ---
             _configService = new ConfigurationService();
             _systemInfoService = new SystemInfoService();
+            _credentialService = new CredentialService();
             ComputerResults = new ObservableCollection<ComputerInfoResult>();
             AdComputerResults = new ObservableCollection<AdComputerInfoResult>();
-            _loadedComputerNames = new List<string>();
             UserResults = new ObservableCollection<AdUserInfoResult>();
-            _loadedUserNames = new List<string>();
 
             MainDataGrid.ItemsSource = ComputerResults;
             UserDataGrid.ItemsSource = UserResults;
@@ -113,18 +108,18 @@ namespace AdminInfoTools
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(_sessionUsername) || string.IsNullOrWhiteSpace(_sessionPassword))
+            if (!_credentialService.AreCredentialsSet)
             {
                 MessageBox.Show("Please set your AD Credentials in the Options menu first.", "Credentials Required", MessageBoxButton.OK, MessageBoxImage.Warning);
                 SwitchView(ViewOptions); // Automatically route them to the options page
                 return;
             }
 
-            if (_adService == null) _adService = new ActiveDirectoryService(_configService);
+            if (_adService == null) _adService = new ActiveDirectoryService(_configService); // This should have been initialized on config load
             
             // Pass the session credentials to the service
-            _adService.DomainUser = _sessionUsername;
-            _adService.DomainPass = _sessionPassword;
+            _adService.DomainUser = _credentialService.Username;
+            _adService.DomainPass = _credentialService.Password;
             
             CmbComputerType.ItemsSource = _configService.CurrentSettings.ActiveDirectory.ComputerTypes;
             if (CmbComputerType.Items.Count > 0) CmbComputerType.SelectedIndex = 0;
@@ -147,29 +142,16 @@ namespace AdminInfoTools
 
         private void LoadSavedCredentials()
         {
-            try
+            var creds = _credentialService.LoadSavedCredentials();
+            if (creds.HasValue)
             {
-                if (File.Exists(_credFilePath))
-                {
-                    var parts = File.ReadAllText(_credFilePath).Split('|');
-                    if (parts.Length == 2)
-                    {
-                        string user = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(parts[0]));
-                        string pass = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(parts[1]));
-                        
-                        TxtAdUsername.Text = user;
-                        TxtAdPassword.Password = pass;
-                        ChkSaveCredentials.IsChecked = true;
+                TxtAdUsername.Text = creds.Value.Username;
+                TxtAdPassword.Password = creds.Value.Password;
+                ChkSaveCredentials.IsChecked = true;
 
-                        // Auto-set session credentials
-                        _sessionUsername = user;
-                        _sessionPassword = pass;
-                        LblCredStatus.Text = "Status: Credentials loaded from disk.";
-                        LblCredStatus.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.LimeGreen);
-                    }
-                }
+                LblCredStatus.Text = "Status: Credentials loaded from disk.";
+                LblCredStatus.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.LimeGreen);
             }
-            catch { /* Ignore errors if file is tampered with or corrupted */ }
         }
 
         private void BtnSaveCredentials_Click(object sender, RoutedEventArgs e)
@@ -180,42 +162,28 @@ namespace AdminInfoTools
                 return;
             }
 
-            // Store in memory
-            _sessionUsername = TxtAdUsername.Text;
-            _sessionPassword = TxtAdPassword.Password;
-
-            // Save or remove credentials file based on checkbox
             try
             {
-                if (ChkSaveCredentials.IsChecked == true)
-                {
-                    string encUser = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(_sessionUsername));
-                    string encPass = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(_sessionPassword));
-                    File.WriteAllText(_credFilePath, $"{encUser}|{encPass}");
-                }
-                else
-                {
-                    if (File.Exists(_credFilePath)) File.Delete(_credFilePath);
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Failed to save credentials to disk: {ex.Message}", "Save Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
+                _credentialService.SaveOrClearCredentials(TxtAdUsername.Text, TxtAdPassword.Password, ChkSaveCredentials.IsChecked == true);
 
-            // If the service is already running, update it live
-            if (_adService != null)
-            {
-                _adService.DomainUser = _sessionUsername;
-                _adService.DomainPass = _sessionPassword;
-            }
+                // If the AD service is already running, update it live
+                if (_adService != null)
+                {
+                    _adService.DomainUser = _credentialService.Username;
+                    _adService.DomainPass = _credentialService.Password;
+                }
 
-            LblCredStatus.Text = ChkSaveCredentials.IsChecked == true 
-                ? "Status: Credentials stored in memory and saved to disk." 
-                : "Status: Credentials stored securely in memory for this session.";
-            LblCredStatus.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.LimeGreen);
-            
-            MessageBox.Show("Credentials successfully set.", "Credentials Updated", MessageBoxButton.OK, MessageBoxImage.Information);
+                LblCredStatus.Text = ChkSaveCredentials.IsChecked == true 
+                    ? "Status: Credentials stored in memory and saved to disk." 
+                    : "Status: Credentials stored securely in memory for this session.";
+                LblCredStatus.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.LimeGreen);
+                
+                MessageBox.Show("Credentials successfully set.", "Credentials Updated", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (IOException ex)
+            {
+                MessageBox.Show($"{ex.Message}: {ex.InnerException?.Message}", "Save Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
 
         private string[] GetAdHostnames()
@@ -228,7 +196,7 @@ namespace AdminInfoTools
 
         private void ProcessAdAction(string actionName, Func<string, bool> adOperation)
         {
-            if (_adService == null || string.IsNullOrWhiteSpace(_adService.DomainUser) || string.IsNullOrWhiteSpace(_adService.DomainPass))
+            if (_adService == null || !_credentialService.AreCredentialsSet)
             {
                 MessageBox.Show("Active Directory service not initialized or credentials not set. Please load settings and set credentials first.", "Setup Required", MessageBoxButton.OK, MessageBoxImage.Warning);
                 SwitchView(ViewOptions);
@@ -288,23 +256,18 @@ namespace AdminInfoTools
                 }
             }
 
-            // --- NEW: WRITE TO TEXT FILE (Moved from GenerateSequentialHostnames) ---
-            try
+            // If we generated names sequentially, save them to a file for the user's reference.
+            if (RdoCreateSequential.IsChecked == true && hostsToCreate.Any())
             {
-                // Choose your file name and path. 
-                // Using just the file name saves it directly to the folder where your .exe is running.
-                string fileName = "GeneratedHostnames.txt";
-                
-                // WriteAllLines automatically puts each item in the list on a new line
-                System.IO.File.WriteAllLines(fileName, hostsToCreate);
-
-                // Get the full path so the user knows exactly where to look for it
-                string fullPath = System.IO.Path.GetFullPath(fileName);
-                MessageBox.Show($"Successfully generated {hostsToCreate.Length} hostnames.\n\nSaved to:\n{fullPath}", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            catch (System.Exception ex)
-            {
-                MessageBox.Show($"Hostnames were generated, but could not save to text file.\nError: {ex.Message}", "File Write Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                try
+                {
+                    string fullPath = FileHelper.SaveLinesToFile(hostsToCreate, "GeneratedHostnames.txt");
+                    MessageBox.Show($"Successfully generated {hostsToCreate.Length} hostnames.\n\nSaved to:\n{fullPath}", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Hostnames were generated, but could not save to text file.\nError: {ex.Message}", "File Write Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
 
             // Loop through the final list and create them
@@ -417,10 +380,10 @@ namespace AdminInfoTools
                         {
                             _adService = new ActiveDirectoryService(_configService);
                             // If credentials were auto-loaded, apply them now
-                            if (!string.IsNullOrWhiteSpace(_sessionUsername) && !string.IsNullOrWhiteSpace(_sessionPassword))
+                            if (_credentialService.AreCredentialsSet)
                             {
-                                _adService.DomainUser = _sessionUsername;
-                                _adService.DomainPass = _sessionPassword;
+                                _adService.DomainUser = _credentialService.Username;
+                                _adService.DomainPass = _credentialService.Password;
                             }
                         }
                         catch (InvalidOperationException ex)
@@ -524,17 +487,6 @@ namespace AdminInfoTools
             }
         }
 
-        private void BtnLoadList_Click(object sender, RoutedEventArgs e)
-        {
-            OpenFileDialog openFileDialog = new OpenFileDialog { Filter = "Text Files (*.txt)|*.txt" };
-            if (openFileDialog.ShowDialog() == true)
-            {
-                _loadedComputerNames.Clear();
-                _loadedComputerNames.AddRange(File.ReadAllLines(openFileDialog.FileName).Where(l => !string.IsNullOrWhiteSpace(l)).Select(l => l.Trim().ToUpper()));
-                StatusText.Text = $"Loaded {_loadedComputerNames.Count} computers.";
-            }
-        }
-
         private async void BtnGetInfo_Click(object sender, RoutedEventArgs e)
         {
             var computersToQuery = GetAdHostnames();
@@ -575,7 +527,7 @@ namespace AdminInfoTools
                 return;
             }
             
-            if (_adService == null || string.IsNullOrWhiteSpace(_adService.DomainUser) || string.IsNullOrWhiteSpace(_adService.DomainPass))
+            if (_adService == null || !_credentialService.AreCredentialsSet)
             {
                 MessageBox.Show("Active Directory service not initialized or credentials not set. Please load settings and set credentials first.", "Setup Required", MessageBoxButton.OK, MessageBoxImage.Warning);
                 SwitchView(ViewOptions);
@@ -625,8 +577,20 @@ namespace AdminInfoTools
             {
                 try
                 {
-                    ExportToCsv(saveFileDialog.FileName);
-                    
+                    if (MainDataGrid.ItemsSource is IEnumerable<ComputerInfoResult> wmiResults && wmiResults.Any())
+                    {
+                        CsvExportService.Export(wmiResults, saveFileDialog.FileName);
+                    }
+                    else if (MainDataGrid.ItemsSource is IEnumerable<AdComputerInfoResult> adResults && adResults.Any())
+                    {
+                        CsvExportService.Export(adResults, saveFileDialog.FileName);
+                    }
+                    else
+                    {
+                        MessageBox.Show("The data in the grid is not in a recognized format for export.", "Export Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        return;
+                    }
+
                     System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                     {
                         FileName = saveFileDialog.FileName,
@@ -636,30 +600,6 @@ namespace AdminInfoTools
                 catch (Exception ex)
                 {
                     MessageBox.Show($"Export failed: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
-            }
-        }
-
-        private void ExportToCsv(string filePath)
-        {
-            var currentData = MainDataGrid.ItemsSource.Cast<object>().ToList();
-            if (currentData.Count == 0) return;
-
-            var properties = currentData.GetType().GetProperties();
-
-            using (StreamWriter sw = new StreamWriter(filePath, false, System.Text.Encoding.UTF8))
-            {
-                sw.WriteLine(string.Join(",", properties.Select(p => p.Name)));
-
-                foreach (var item in currentData)
-                {
-                    var values = properties.Select(p => 
-                    {
-                        var val = p.GetValue(item, null)?.ToString() ?? "";
-                        return $"\"{val.Replace("\"", "\"\"")}\"";
-                    });
-                    
-                    sw.WriteLine(string.Join(",", values));
                 }
             }
         }
@@ -691,14 +631,14 @@ namespace AdminInfoTools
             var usersToQuery = GetTargetUsers(); // Use the new textbox reader!
             if (usersToQuery.Length == 0) return;
             
-            if (string.IsNullOrWhiteSpace(_sessionUsername) || string.IsNullOrWhiteSpace(_sessionPassword))
+            if (!_credentialService.AreCredentialsSet)
             {
                 MessageBox.Show("Please set your AD Credentials in the Options menu first.", "Credentials Required", MessageBoxButton.OK, MessageBoxImage.Warning);
                 SwitchView(ViewOptions);
                 return;
             }
 
-            if (_adService == null || string.IsNullOrWhiteSpace(_adService.DomainUser) || string.IsNullOrWhiteSpace(_adService.DomainPass))
+            if (_adService == null) // Credentials check is implicitly handled by the one above
             {
                 MessageBox.Show("Active Directory service not initialized or credentials not set. Please load settings and set credentials first.", "Setup Required", MessageBoxButton.OK, MessageBoxImage.Warning);
                 SwitchView(ViewOptions);
@@ -740,14 +680,18 @@ namespace AdminInfoTools
 
             if (saveFileDialog.ShowDialog() == true)
             {
-                // We can reuse the exact same CSV exporter from System Info!
-                // Temporarily swap the datagrid source to run the export
-                var originalSource = MainDataGrid.ItemsSource;
-                MainDataGrid.ItemsSource = UserDataGrid.ItemsSource;
-                ExportToCsv(saveFileDialog.FileName);
-                MainDataGrid.ItemsSource = originalSource;
-                
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = saveFileDialog.FileName, UseShellExecute = true });
+                try
+                {
+                    if (UserDataGrid.ItemsSource is IEnumerable<AdUserInfoResult> userResults && userResults.Any())
+                    {
+                        CsvExportService.Export(userResults, saveFileDialog.FileName);
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = saveFileDialog.FileName, UseShellExecute = true });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Export failed: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
         }
 
@@ -778,7 +722,7 @@ namespace AdminInfoTools
 
         private void ProcessUserAction(string actionName, Func<string, bool> adOperation)
         {
-            if (_adService == null || string.IsNullOrWhiteSpace(_adService.DomainUser) || string.IsNullOrWhiteSpace(_adService.DomainPass))
+            if (_adService == null || !_credentialService.AreCredentialsSet)
             {
                 MessageBox.Show("Active Directory service not initialized or credentials not set. Please load settings and set credentials first.", "Setup Required", MessageBoxButton.OK, MessageBoxImage.Warning);
                 SwitchView(ViewOptions);
