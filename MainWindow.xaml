@@ -102,6 +102,15 @@
                             <Button x:Name="BtnAdDelete" Content="🗑️ Delete Object(s)" Height="25" Background="#DC3545" Foreground="White" BorderThickness="0" Cursor="Hand"/>
                         </StackPanel>
                     </Expander>
+
+                    <Expander x:Name="ExpanderRemote" Header="6. Remote Execution" FontWeight="Bold" Expanded="Accordion_Expanded" Margin="0,0,0,5">
+                        <StackPanel Margin="0,5,0,0" TextElement.FontWeight="Normal">
+                            <Button x:Name="BtnRunScript" Content="📜 Run Remote Script" Height="25" Margin="0,0,0,5" Background="#17A2B8" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                            <TextBlock Text="Ad-Hoc Command:" Margin="0,5,0,2"/>
+                            <TextBox x:Name="TxtCommand" Height="25" Margin="0,0,0,5" Padding="2" VerticalContentAlignment="Center" Text="ipconfig /flushdns"/>
+                            <Button x:Name="BtnRunCommand" Content="⚡ Run Command" Height="25" Margin="0,0,0,10" Background="#6F42C1" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                        </StackPanel>
+                    </Expander>
                 </StackPanel>
 
                 <Grid Grid.Column="1">

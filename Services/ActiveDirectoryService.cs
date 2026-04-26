@@ -10,6 +10,7 @@ namespace AdminInfoTools.Services
     {
         private readonly ConfigurationService _configService;
         private readonly ActiveDirectoryConfig _adConfig;
+        private readonly LogService _logger;
 
         // --- TEST LAB CREDENTIALS ---
         public string DomainUser { get; set; }
@@ -20,6 +21,7 @@ namespace AdminInfoTools.Services
             _configService = configService;
             _adConfig = _configService.CurrentSettings?.ActiveDirectory 
                         ?? throw new InvalidOperationException("Active Directory Configuration is missing.");
+            _logger = new LogService();
         }
 
         private PrincipalContext GetDomainContext()
@@ -29,11 +31,14 @@ namespace AdminInfoTools.Services
 
         public bool CreateComputerObject(string hostname, string computerTypeKey)
         {
+            _logger.LogAdOperation("CreateComputer", hostname, "STARTED", $"Type: {computerTypeKey}");
             try
             {
                 if (!_adConfig.ComputerTypes.TryGetValue(computerTypeKey, out var typeConfig))
                 {
-                    throw new ArgumentException($"Unknown computer type: {computerTypeKey}");
+                    string error = $"Unknown computer type: {computerTypeKey}";
+                    _logger.LogAdOperation("CreateComputer", hostname, "ERROR", error);
+                    return false;
                 }
 
                 string ldapPath = $"LDAP://{_adConfig.TargetServer}/{typeConfig.TargetOU}";
@@ -72,17 +77,19 @@ namespace AdminInfoTools.Services
                         }
                     }
                 }
+                _logger.LogAdOperation("CreateComputer", hostname, "SUCCESS");
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to create {hostname}: {ex.Message}");
+                _logger.LogAdOperation("CreateComputer", hostname, "ERROR", ex.Message);
                 return false;
             }
         }
 
         public bool DeleteComputerObject(string hostname)
         {
+            _logger.LogAdOperation("DeleteComputer", hostname, "STARTED");
             try
             {
                 using (var context = GetDomainContext())
@@ -92,21 +99,25 @@ namespace AdminInfoTools.Services
                         if (computer != null)
                         {
                             computer.Delete();
+                            _logger.LogAdOperation("DeleteComputer", hostname, "SUCCESS");
                             return true;
                         }
                     }
                 }
+                _logger.LogAdOperation("DeleteComputer", hostname, "FAILED", "Computer not found.");
                 return false;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to delete {hostname}: {ex.Message}");
+                _logger.LogAdOperation("DeleteComputer", hostname, "ERROR", ex.Message);
                 return false;
             }
         }
 
         public bool SetComputerStatus(string hostname, bool isEnabled)
         {
+            string operation = isEnabled ? "EnableComputer" : "DisableComputer";
+            _logger.LogAdOperation(operation, hostname, "STARTED");
             try
             {
                 using (var context = GetDomainContext())
@@ -118,21 +129,24 @@ namespace AdminInfoTools.Services
                             computer.Enabled = isEnabled;
                             computer.Description = $"{(isEnabled ? "Enabled" : "Disabled")} on : {DateTime.Now.ToShortDateString()}";
                             computer.Save();
+                            _logger.LogAdOperation(operation, hostname, "SUCCESS");
                             return true;
                         }
                     }
                 }
+                _logger.LogAdOperation(operation, hostname, "FAILED", "Computer not found.");
                 return false;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to update status for {hostname}: {ex.Message}");
+                _logger.LogAdOperation(operation, hostname, "ERROR", ex.Message);
                 return false;
             }
         }
 
         public bool SetComputerDescription(string hostname, string newDescription)
         {
+            _logger.LogAdOperation("SetCompDesc", hostname, "STARTED", $"NewDesc: {newDescription}");
             try
             {
                 using (var context = GetDomainContext())
@@ -143,21 +157,24 @@ namespace AdminInfoTools.Services
                         {
                             computer.Description = newDescription;
                             computer.Save();
+                            _logger.LogAdOperation("SetCompDesc", hostname, "SUCCESS");
                             return true;
                         }
                     }
                 }
+                _logger.LogAdOperation("SetCompDesc", hostname, "FAILED", "Computer not found.");
                 return false;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to set description for {hostname}: {ex.Message}");
+                _logger.LogAdOperation("SetCompDesc", hostname, "ERROR", ex.Message);
                 return false;
             }
         }
 
         public bool MoveComputerObject(string hostname, string targetOuLdapPath, string newDescription)
         {
+            _logger.LogAdOperation("MoveComputer", hostname, "STARTED", $"TargetOU: {targetOuLdapPath}");
             try
             {
                 using (var context = GetDomainContext())
@@ -176,15 +193,17 @@ namespace AdminInfoTools.Services
 
                             computer.Description = newDescription;
                             computer.Save();
+                            _logger.LogAdOperation("MoveComputer", hostname, "SUCCESS");
                             return true;
                         }
                     }
                 }
+                _logger.LogAdOperation("MoveComputer", hostname, "FAILED", "Computer not found.");
                 return false;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to move {hostname}: {ex.Message}");
+                _logger.LogAdOperation("MoveComputer", hostname, "ERROR", ex.Message);
                 return false;
             }
         }
@@ -192,6 +211,7 @@ namespace AdminInfoTools.Services
         // --- THIS WAS THE MISSING METHOD ---
         public AdComputerInfoResult GetAdComputerInfo(string targetName)
         {
+            _logger.LogAdOperation("GetCompInfo", targetName, "STARTED");
             var result = new AdComputerInfoResult { InputName = targetName, Status = "Not Found" };
             string searchName = targetName;
 
@@ -211,9 +231,10 @@ namespace AdminInfoTools.Services
                         
                         result.ResolvedHostname = searchName;
                     } 
-                    catch 
+                    catch (Exception dnsEx)
                     {
                         result.Status = "DNS Resolution Failed";
+                        _logger.LogAdOperation("GetCompInfo", targetName, "ERROR", $"DNS Resolution Failed: {dnsEx.Message}");
                         return result;
                     }
                 }
@@ -241,6 +262,11 @@ namespace AdminInfoTools.Services
                             result.DistinguishedName = dnProp != null ? dnProp.ToString() : "N/A";
                             
                             result.Status = "Found";
+                            _logger.LogAdOperation("GetCompInfo", targetName, "SUCCESS", $"Found: {searchName}");
+                        }
+                        else
+                        {
+                            _logger.LogAdOperation("GetCompInfo", targetName, "NOT_FOUND", $"SearchName: {searchName}");
                         }
                     }
                 }
@@ -248,12 +274,14 @@ namespace AdminInfoTools.Services
             catch (Exception ex)
             {
                 result.Status = $"Error: {ex.Message}";
+                _logger.LogAdOperation("GetCompInfo", targetName, "ERROR", ex.Message);
             }
             return result;
         }
 
         public AdUserInfoResult GetAdUserInfo(string targetName)
         {
+            _logger.LogAdOperation("GetUserInfo", targetName, "STARTED");
             var result = new AdUserInfoResult { InputName = targetName, Status = "Not Found" };
 
             try
@@ -289,6 +317,11 @@ namespace AdminInfoTools.Services
                             }
 
                             result.Status = "Found";
+                            _logger.LogAdOperation("GetUserInfo", targetName, "SUCCESS");
+                        }
+                        else
+                        {
+                            _logger.LogAdOperation("GetUserInfo", targetName, "NOT_FOUND");
                         }
                     }
                 }
@@ -296,54 +329,93 @@ namespace AdminInfoTools.Services
             catch (Exception ex)
             {
                 result.Status = $"Error: {ex.Message}";
+                _logger.LogAdOperation("GetUserInfo", targetName, "ERROR", ex.Message);
             }
             return result;
         }
 
         public bool UnlockUserAccount(string targetName)
         {
+            _logger.LogAdOperation("UnlockAccount", targetName, "STARTED");
             try
             {
                 using (var context = GetDomainContext())
                 using (var user = UserPrincipal.FindByIdentity(context, IdentityType.SamAccountName, targetName))
                 {
-                    if (user != null) { user.UnlockAccount(); user.Save(); return true; }
+                    if (user != null)
+                    {
+                        user.UnlockAccount();
+                        user.Save();
+                        _logger.LogAdOperation("UnlockAccount", targetName, "SUCCESS");
+                        return true;
+                    }
                 }
+                _logger.LogAdOperation("UnlockAccount", targetName, "FAILED", "User not found.");
+                return false;
             }
-            catch { }
-            return false;
+            catch (Exception ex)
+            {
+                _logger.LogAdOperation("UnlockAccount", targetName, "ERROR", ex.Message);
+                return false;
+            }
         }
 
         public bool SetUserStatus(string targetName, bool isEnabled)
         {
+            string operation = isEnabled ? "EnableUser" : "DisableUser";
+            _logger.LogAdOperation(operation, targetName, "STARTED");
             try
             {
                 using (var context = GetDomainContext())
                 using (var user = UserPrincipal.FindByIdentity(context, IdentityType.SamAccountName, targetName))
                 {
-                    if (user != null) { user.Enabled = isEnabled; user.Save(); return true; }
+                    if (user != null)
+                    {
+                        user.Enabled = isEnabled;
+                        user.Save();
+                        _logger.LogAdOperation(operation, targetName, "SUCCESS");
+                        return true;
+                    }
                 }
+                _logger.LogAdOperation(operation, targetName, "FAILED", "User not found.");
+                return false;
             }
-            catch { }
-            return false;
+            catch (Exception ex)
+            {
+                _logger.LogAdOperation(operation, targetName, "ERROR", ex.Message);
+                return false;
+            }
         }
 
         public bool ForcePasswordReset(string targetName)
         {
+            _logger.LogAdOperation("ForcePassReset", targetName, "STARTED");
             try
             {
                 using (var context = GetDomainContext())
                 using (var user = UserPrincipal.FindByIdentity(context, IdentityType.SamAccountName, targetName))
                 {
-                    if (user != null) { user.ExpirePasswordNow(); user.Save(); return true; }
+                    if (user != null)
+                    {
+                        user.ExpirePasswordNow();
+                        user.Save();
+                        _logger.LogAdOperation("ForcePassReset", targetName, "SUCCESS");
+                        return true;
+                    }
                 }
+                _logger.LogAdOperation("ForcePassReset", targetName, "FAILED", "User not found.");
+                return false;
             }
-            catch { }
-            return false;
+            catch (Exception ex)
+            {
+                _logger.LogAdOperation("ForcePassReset", targetName, "ERROR", ex.Message);
+                return false;
+            }
         }
 
         public bool SetUserOrganization(string targetName, string department, string title)
         {
+            _logger.LogAdOperation("SetUserOrg", targetName, "STARTED", $"Dept: {department}, Title: {title}");
             try
             {
                 using (var context = GetDomainContext())
@@ -355,12 +427,18 @@ namespace AdminInfoTools.Services
                         if (!string.IsNullOrWhiteSpace(department)) de.Properties["department"].Value = department;
                         if (!string.IsNullOrWhiteSpace(title)) de.Properties["title"].Value = title;
                         de.CommitChanges();
+                        _logger.LogAdOperation("SetUserOrg", targetName, "SUCCESS");
                         return true;
                     }
                 }
+                _logger.LogAdOperation("SetUserOrg", targetName, "FAILED", "User not found.");
+                return false;
             }
-            catch { }
-            return false;
+            catch (Exception ex)
+            {
+                _logger.LogAdOperation("SetUserOrg", targetName, "ERROR", ex.Message);
+                return false;
+            }
         }
     }
 }

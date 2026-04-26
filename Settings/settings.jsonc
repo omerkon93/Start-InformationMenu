@@ -37,7 +37,7 @@
     "ComputerNamePattern": "^AF-[WM]-\\d{4}$"
   },
   "ExternalTools": {
-    "PsExecPath": "C:\\Windows\\PSTools\\PsExec.exe",
+    "PsExecPath": "C:\\Projects\\Start-InformationMenu\\cs\\PSTools\\PsExec.exe",
     "DamewarePath": "",
     "BatchScriptsLocation": null
   }

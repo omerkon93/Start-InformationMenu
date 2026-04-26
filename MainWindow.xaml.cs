@@ -69,6 +69,9 @@ namespace AdminInfoTools
             BtnAdMove.Click += BtnAdMove_Click;
             BtnAdSetDescription.Click += BtnAdSetDescription_Click; 
             
+            BtnRunScript.Click += BtnRunScript_Click;
+            BtnRunCommand.Click += BtnRunCommand_Click;
+            
             // Query Buttons
             BtnGetInfo.Click += BtnGetInfo_Click;
             BtnGetAdInfo.Click += BtnGetAdInfo_Click;
@@ -309,6 +312,86 @@ namespace AdminInfoTools
             }
 
             ProcessAdAction("Set Description", host => _adService.SetComputerDescription(host, newDesc));
+        }
+
+        // --- REMOTE EXECUTION ---
+        private async void BtnRunScript_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedComputers = GetAdHostnames();
+            if (selectedComputers.Length == 0)
+            {
+                MessageBox.Show("Please enter or load at least one computer name into the 'Target Hostnames' box.", "Empty List", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            OpenFileDialog openFileDialog = new OpenFileDialog
+            {
+                InitialDirectory = @"C:\AdminScripts",
+                Filter = "Scripts (*.bat;*.ps1)|*.bat;*.ps1|All files (*.*)|*.*",
+                Title = "Select the script to invoke remotely"
+            };
+
+            if (openFileDialog.ShowDialog() == true)
+            {
+                string selectedFile = openFileDialog.FileName;
+                
+                BtnRunScript.IsEnabled = false;
+                BtnRunCommand.IsEnabled = false;
+
+                string psExecPath = _configService.CurrentSettings?.ExternalTools?.PsExecPath ?? "psexec.exe";
+                var logger = new LogService();
+                var remoteService = new RemoteExecutionService(logger, psExecPath, _credentialService.Username, _credentialService.Password);
+
+                foreach (string pc in selectedComputers)
+                {
+                    StatusText.Text = $"Running script on {pc}...";
+                    string result = await remoteService.RunRemoteScriptWinRMAsync(pc, selectedFile, _credentialService.Username, _credentialService.Password);
+                    LogAdMessage($"Script Execution on {pc}: {(result.StartsWith("ERROR") || result.StartsWith("EXCEPTION") ? "FAILED" : "SUCCESS")}");
+                }
+
+                StatusText.Text = "Script execution completed.";
+                MessageBox.Show("Script execution completed. Check logs for details.", "Execution Complete", MessageBoxButton.OK, MessageBoxImage.Information);
+                
+                BtnRunScript.IsEnabled = true;
+                BtnRunCommand.IsEnabled = true;
+            }
+        }
+
+        private async void BtnRunCommand_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedComputers = GetAdHostnames();
+            if (selectedComputers.Length == 0)
+            {
+                MessageBox.Show("Please enter or load at least one computer name into the 'Target Hostnames' box.", "Empty List", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            string command = TxtCommand.Text;
+            if (string.IsNullOrWhiteSpace(command))
+            {
+                MessageBox.Show("Please enter a command to execute.", "Empty Command", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            BtnRunScript.IsEnabled = false;
+            BtnRunCommand.IsEnabled = false;
+
+            string psExecPath = _configService.CurrentSettings?.ExternalTools?.PsExecPath ?? "psexec.exe";
+            var logger = new LogService();
+            var remoteService = new RemoteExecutionService(logger, psExecPath, _credentialService.Username, _credentialService.Password);
+
+            foreach (string pc in selectedComputers)
+            {
+                StatusText.Text = $"Running command on {pc}...";
+                string result = await remoteService.RunRemoteCommandWinRMAsync(pc, command, _credentialService.Username, _credentialService.Password);
+                LogAdMessage($"Command Execution on {pc}: {(result.StartsWith("ERROR") || result.StartsWith("EXCEPTION") ? "FAILED" : "SUCCESS")}");
+            }
+
+            StatusText.Text = "Command Execution Complete.";
+            MessageBox.Show("Command execution completed. Check logs for details.", "Execution Complete", MessageBoxButton.OK, MessageBoxImage.Information);
+            
+            BtnRunScript.IsEnabled = true;
+            BtnRunCommand.IsEnabled = true;
         }
 
         // --- LOAD & SAVE HOSTNAMES ---
@@ -610,7 +693,7 @@ namespace AdminInfoTools
             // Ensure we are interacting with an Expander
             if (sender is System.Windows.Controls.Expander expandedExpander)
             {
-                var allExpanders = new[] { ExpanderQuery, ExpanderCreate, ExpanderStatus, ExpanderManage, ExpanderDelete };
+                var allExpanders = new[] { ExpanderQuery, ExpanderCreate, ExpanderStatus, ExpanderManage, ExpanderDelete, ExpanderRemote };
                 foreach (var expander in allExpanders)
                 {
                     if (expander != null && expander != expandedExpander) expander.IsExpanded = false;
