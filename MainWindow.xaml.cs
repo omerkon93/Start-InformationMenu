@@ -20,7 +20,6 @@ namespace AdminInfoTools
         
         public ObservableCollection<ComputerInfoResult> ComputerResults { get; set; }
         public ObservableCollection<AdComputerInfoResult> AdComputerResults { get; set; }
-        public ObservableCollection<AdUserInfoResult> UserResults { get; set; }
         
 
         public MainWindow()
@@ -33,13 +32,10 @@ namespace AdminInfoTools
             _credentialService = new CredentialService();
             ComputerResults = new ObservableCollection<ComputerInfoResult>();
             AdComputerResults = new ObservableCollection<AdComputerInfoResult>();
-            UserResults = new ObservableCollection<AdUserInfoResult>();
 
-            MainDataGrid.ItemsSource = ComputerResults;
-            UserDataGrid.ItemsSource = UserResults;
 
             // --- 3. BIND EVENTS ---
-            // Sidebar Menu Events
+
             BtnComputerMenu.Click += BtnComputerMenu_Click;
             BtnUserMenu.Click += (s, e) => SwitchView(ViewUserManagement);
             
@@ -49,17 +45,6 @@ namespace AdminInfoTools
             BtnBrowseSettings.Click += BtnBrowseSettings_Click;
             BtnLoadSettingsOptions.Click += BtnLoadSettingsOptions_Click;
             BtnSaveConfigToDisk.Click += BtnSaveConfigToDisk_Click;
-
-            // User Info Events
-            BtnUserLoadHosts.Click += BtnUserLoadHosts_Click;
-            BtnUserSaveHosts.Click += BtnUserSaveHosts_Click;
-            BtnGetUserAdInfo.Click += BtnGetUserAdInfo_Click;
-            BtnExportUsers.Click += BtnExportUsers_Click;
-            BtnUserUnlock.Click += (s, e) => ProcessUserAction("Unlock", u => _adService.UnlockUserAccount(u));
-            BtnUserEnable.Click += (s, e) => ProcessUserAction("Enable", u => _adService.SetUserStatus(u, true));
-            BtnUserDisable.Click += (s, e) => ProcessUserAction("Disable", u => _adService.SetUserStatus(u, false));
-            BtnUserForcePassReset.Click += (s, e) => ProcessUserAction("Pass Reset", u => _adService.ForcePasswordReset(u));
-            BtnUserSetOrg.Click += BtnUserSetOrg_Click;
 
             // Computer Management Action Events
             BtnAdCreate.Click += BtnAdCreate_Click;
@@ -131,6 +116,9 @@ namespace AdminInfoTools
             CmbTargetOu.DisplayMemberPath = "Key";
             CmbTargetOu.SelectedValuePath = "Value";
             if (CmbTargetOu.Items.Count > 0) CmbTargetOu.SelectedIndex = 0;
+
+            CmbLoadOu.ItemsSource = _configService.CurrentSettings.ActiveDirectory.SpecialOUs;
+            if (CmbLoadOu.Items.Count > 0) CmbLoadOu.SelectedIndex = 0;
 
             SwitchView(ViewComputerManagement);
             StatusText.Text = "Computer Management mode.";
@@ -432,6 +420,53 @@ namespace AdminInfoTools
             }
         }
 
+        private void BtnLoadFromOu_Click(object sender, RoutedEventArgs e)
+        {
+            if (CmbLoadOu.SelectedValue == null)
+            {
+                MessageBox.Show("Please select an OU from the dropdown.", "Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            string selectedOu = CmbLoadOu.SelectedValue.ToString();
+            string domainName = _configService.CurrentSettings?.ActiveDirectory?.DomainName ?? "testlab.local";
+
+            BtnLoadFromOu.IsEnabled = false;
+            StatusText.Text = "Querying AD for computers...";
+
+            try
+            {
+                if (_adService == null)
+                {
+                    MessageBox.Show("Active Directory service not initialized. Please load settings first.", "Setup Required", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                
+                List<string> computers = _adService.GetComputersFromOu(domainName, selectedOu, _credentialService.Username, _credentialService.Password);
+
+                if (computers.Count > 0)
+                {
+                    // Join the list with newlines and populate the TextBox
+                    TxtAdHostnames.Text = string.Join(Environment.NewLine, computers);
+                    StatusText.Text = $"Loaded {computers.Count} computers from OU.";
+                }
+                else
+                {
+                    MessageBox.Show("No computers found in the selected OU.", "Information", MessageBoxButton.OK, MessageBoxImage.Information);
+                    StatusText.Text = "No computers found.";
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error querying OU: {ex.Message}", "AD Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                StatusText.Text = "Error querying AD.";
+            }
+            finally
+            {
+                BtnLoadFromOu.IsEnabled = true;
+            }
+        }
+
         // --- SYSTEM INFO CODE ---
         // --- SETTINGS & OPTIONS CODE ---
         private void BtnBrowseSettings_Click(object sender, RoutedEventArgs e)
@@ -468,6 +503,8 @@ namespace AdminInfoTools
                                 _adService.DomainUser = _credentialService.Username;
                                 _adService.DomainPass = _credentialService.Password;
                             }
+
+                            this.DataContext = new ViewModels.UserManagementViewModel(_adService);
                         }
                         catch (InvalidOperationException ex)
                         {
@@ -475,6 +512,22 @@ namespace AdminInfoTools
                             _adService = null; // Ensure it's null if initialization failed
                         }
                     }
+
+                    // Populate Computer Management Dropdowns
+                    if (_configService.CurrentSettings.ActiveDirectory != null)
+                    {
+                        CmbComputerType.ItemsSource = _configService.CurrentSettings.ActiveDirectory.ComputerTypes;
+                        if (CmbComputerType.Items.Count > 0) CmbComputerType.SelectedIndex = 0;
+
+                        CmbTargetOu.ItemsSource = _configService.CurrentSettings.ActiveDirectory.SpecialOUs;
+                        CmbTargetOu.DisplayMemberPath = "Key";
+                        CmbTargetOu.SelectedValuePath = "Value";
+                        if (CmbTargetOu.Items.Count > 0) CmbTargetOu.SelectedIndex = 0;
+
+                        CmbLoadOu.ItemsSource = _configService.CurrentSettings.ActiveDirectory.SpecialOUs;
+                        if (CmbLoadOu.Items.Count > 0) CmbLoadOu.SelectedIndex = 0;
+                    }
+
                     // --- NEW: Populate the Edit UI ---
                     var currentSettings = _configService.CurrentSettings;
                     if (currentSettings != null)
@@ -701,84 +754,6 @@ namespace AdminInfoTools
             }
         }
 
-        // --- CREATION MODE TOGGLE ---
-        private void RdoCreateMode_Changed(object sender, RoutedEventArgs e)
-        {
-            if (PanelSequentialInput == null) return; // Prevent crashes during window load
-            PanelSequentialInput.Visibility = RdoCreateSequential.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
-        }
-
-        // --- USER MANAGEMENT CODE ---
-        private async void BtnGetUserAdInfo_Click(object sender, RoutedEventArgs e)
-        {
-            var usersToQuery = GetTargetUsers(); // Use the new textbox reader!
-            if (usersToQuery.Length == 0) return;
-            
-            if (!_credentialService.AreCredentialsSet)
-            {
-                MessageBox.Show("Please set your AD Credentials in the Options menu first.", "Credentials Required", MessageBoxButton.OK, MessageBoxImage.Warning);
-                SwitchView(ViewOptions);
-                return;
-            }
-
-            if (_adService == null) // Credentials check is implicitly handled by the one above
-            {
-                MessageBox.Show("Active Directory service not initialized or credentials not set. Please load settings and set credentials first.", "Setup Required", MessageBoxButton.OK, MessageBoxImage.Warning);
-                SwitchView(ViewOptions);
-                return;
-            }
-            // Credentials should already be set on _adService if it's not null, from BtnLoadSettingsOptions_Click or BtnUserMenu_Click
-
-            BtnGetUserAdInfo.IsEnabled = false; 
-            
-            UserDataGrid.ItemsSource = UserResults;
-            UserResults.Clear();
-            
-            StatusText.Text = "Querying Active Directory Users... Please wait.";
-
-            foreach (var user in usersToQuery) // Loop through the new array
-            {
-                // Run in background so UI doesn't freeze
-                var result = await System.Threading.Tasks.Task.Run(() => _adService.GetAdUserInfo(user));
-                UserResults.Add(result);
-            }
-
-            StatusText.Text = $"User Query complete. Processed {usersToQuery.Length} users.";
-            BtnGetUserAdInfo.IsEnabled = true;
-        }
-
-        private void BtnExportUsers_Click(object sender, RoutedEventArgs e)
-        {
-            if (UserDataGrid.Items.Count == 0 || UserDataGrid.ItemsSource == null)
-            {
-                MessageBox.Show("There is no data to export.", "Empty", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            SaveFileDialog saveFileDialog = new SaveFileDialog
-            {
-                Filter = "CSV File (*.csv)|*.csv",
-                FileName = $"UserExport_{DateTime.Now:yyyyMMdd_HHmmss}.csv"
-            };
-
-            if (saveFileDialog.ShowDialog() == true)
-            {
-                try
-                {
-                    if (UserDataGrid.ItemsSource is IEnumerable<AdUserInfoResult> userResults && userResults.Any())
-                    {
-                        CsvExportService.Export(userResults, saveFileDialog.FileName);
-                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = saveFileDialog.FileName, UseShellExecute = true });
-                    }
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"Export failed: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
-            }
-        }
-
-        // --- NEW USER MANAGEMENT LOGIC ---
         private void UserAccordion_Expanded(object sender, RoutedEventArgs e)
         {
             if (sender is System.Windows.Controls.Expander expandedExpander)
@@ -791,61 +766,11 @@ namespace AdminInfoTools
             }
         }
 
-        private string[] GetTargetUsers()
+        // --- CREATION MODE TOGGLE ---
+        private void RdoCreateMode_Changed(object sender, RoutedEventArgs e)
         {
-            return TxtUsernames.Text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries)
-                                    .Select(h => h.Trim()).Where(h => !string.IsNullOrEmpty(h)).ToArray();
-        }
-
-        private void LogUserMessage(string message)
-        {
-            ListUserLogs.Items.Add($"[{DateTime.Now:HH:mm:ss}] {message}");
-            ListUserLogs.ScrollIntoView(ListUserLogs.Items[ListUserLogs.Items.Count - 1]);
-        }
-
-        private void ProcessUserAction(string actionName, Func<string, bool> adOperation)
-        {
-            if (_adService == null || !_credentialService.AreCredentialsSet)
-            {
-                MessageBox.Show("Active Directory service not initialized or credentials not set. Please load settings and set credentials first.", "Setup Required", MessageBoxButton.OK, MessageBoxImage.Warning);
-                SwitchView(ViewOptions);
-                return;
-            }
-
-            var users = GetTargetUsers();
-            if (users.Length == 0) return;
-
-            foreach (var user in users)
-            {
-                LogUserMessage($"ACTION: {actionName,-12} | TARGET: {user,-15} | STATUS: Attempting...");
-                bool success = adOperation(user);
-                LogUserMessage($"ACTION: {actionName,-12} | TARGET: {user,-15} | STATUS: {(success ? "SUCCESS" : "FAILED")}");
-            }
-        }
-
-        private void BtnUserSetOrg_Click(object sender, RoutedEventArgs e)
-        {
-            string dept = TxtUserDept.Text;
-            string title = TxtUserTitle.Text;
-            if (string.IsNullOrWhiteSpace(dept) && string.IsNullOrWhiteSpace(title))
-            {
-                MessageBox.Show("Please enter a Department or Job Title.", "Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-            ProcessUserAction("Set Org Info", u => _adService.SetUserOrganization(u, dept, title));
-        }
-
-        // --- LOAD / SAVE USER LISTS ---
-        private void BtnUserLoadHosts_Click(object sender, RoutedEventArgs e)
-        {
-            OpenFileDialog openFileDialog = new OpenFileDialog { Filter = "Text Files (*.txt)|*.txt" };
-            if (openFileDialog.ShowDialog() == true) TxtUsernames.Text = File.ReadAllText(openFileDialog.FileName);
-        }
-
-        private void BtnUserSaveHosts_Click(object sender, RoutedEventArgs e)
-        {
-            SaveFileDialog saveFileDialog = new SaveFileDialog { Filter = "Text Files (*.txt)|*.txt", FileName = "TargetUsers.txt" };
-            if (saveFileDialog.ShowDialog() == true) File.WriteAllText(saveFileDialog.FileName, TxtUsernames.Text);
+            if (PanelSequentialInput == null) return; // Prevent crashes during window load
+            PanelSequentialInput.Visibility = RdoCreateSequential.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         }
     }
 }

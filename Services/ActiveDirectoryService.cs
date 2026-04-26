@@ -440,5 +440,47 @@ namespace AdminInfoTools.Services
                 return false;
             }
         }
+
+        public List<string> GetComputersFromOu(string domainName, string ouPath, string username, string password)
+        {
+            var computerNames = new List<string>();
+
+            try
+            {
+                // 1. Check if we have explicit credentials (running from off-domain)
+                bool hasCreds = !string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(password);
+
+                // 2. Create the context using those credentials if they exist
+                using (PrincipalContext context = hasCreds 
+                    ? new PrincipalContext(ContextType.Domain, domainName, null, ContextOptions.Negotiate, username, password)
+                    : new PrincipalContext(ContextType.Domain, domainName, ouPath)) // Fallback for Domain PCs
+                {
+                    // Note: If using credentials, we have to bind the OU differently in the searcher
+                    ComputerPrincipal qbeComputer = new ComputerPrincipal(context);
+                    using (PrincipalSearcher searcher = new PrincipalSearcher(qbeComputer))
+                    {
+                        // If we passed credentials, the PrincipalContext is bound to the root domain.
+                        // We must restrict the search to the specific OU container manually.
+                        if (hasCreds)
+                        {
+                            ((DirectorySearcher)searcher.GetUnderlyingSearcher()).SearchRoot = 
+                                new DirectoryEntry($"LDAP://{domainName}/{ouPath}", username, password);
+                        }
+
+                        foreach (var result in searcher.FindAll())
+                        {
+                            computerNames.Add(result.Name);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogAdOperation("QueryOU", ouPath, "ERROR", ex.Message);
+                throw;
+            }
+
+            return computerNames;
+        }
     }
 }
