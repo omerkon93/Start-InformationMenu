@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 using Microsoft.Win32;
 using AdminInfoTools.Models;
 using AdminInfoTools.Helpers;
@@ -179,7 +180,7 @@ namespace AdminInfoTools
 
         private string[] GetAdHostnames()
         {
-            return TxtAdHostnames.Text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries)
+            return TxtComputerObjectList.Text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries)
                                       .Select(h => h.Trim().ToUpper())
                                       .Where(h => !string.IsNullOrEmpty(h))
                                       .ToArray();
@@ -214,7 +215,7 @@ namespace AdminInfoTools
             string[] hostsToCreate;
 
             // Determine where we are getting our hostnames from
-            if (RdoCreateSequential.IsChecked == true)
+            if (RdoPatternCreate.IsChecked == true)
             {
                 if (!int.TryParse(TxtCreateCount.Text, out int count) || count <= 0)
                 {
@@ -248,11 +249,15 @@ namespace AdminInfoTools
             }
 
             // If we generated names sequentially, save them to a file for the user's reference.
-            if (RdoCreateSequential.IsChecked == true && hostsToCreate.Any())
+            if (RdoPatternCreate.IsChecked == true && hostsToCreate.Any())
             {
                 try
                 {
-                    string fullPath = FileHelper.SaveLinesToFile(hostsToCreate, "GeneratedHostnames.txt");
+                    string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                    string logDirectory = @"C:\Projects\Start-InformationMenu\cs\Logs\ComputerObjectGenerated\";
+                    Directory.CreateDirectory(logDirectory); // Ensures the directory exists before saving
+                    string filePath = Path.Combine(logDirectory, $"ComputerObjectGenerated-{timestamp}.txt");
+                    string fullPath = FileHelper.SaveLinesToFile(hostsToCreate, filePath);
                     MessageBox.Show($"Successfully generated {hostsToCreate.Length} hostnames.\n\nSaved to:\n{fullPath}", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 catch (Exception ex)
@@ -273,11 +278,96 @@ namespace AdminInfoTools
 
         private void BtnAdDelete_Click(object sender, RoutedEventArgs e)
         {
-            var result = MessageBox.Show("Are you ABSOLUTELY sure you want to delete these objects from AD?", "Confirm Deletion", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-            if (result == MessageBoxResult.Yes)
+            var hosts = GetAdHostnames();
+            if (hosts.Length == 0)
+            {
+                MessageBox.Show("Please enter or load target hostnames first.", "Missing Input", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (ConfirmDeletion(hosts.Length))
             {
                 ProcessAdAction("Delete", host => _adService.DeleteComputerObject(host));
             }
+            else
+            {
+                LogAdMessage("Deletion cancelled by user.");
+            }
+        }
+
+        private bool ConfirmDeletion(int objectCount)
+        {
+            if (objectCount <= 5)
+            {
+                var result = MessageBox.Show($"Are you ABSOLUTELY sure you want to delete {objectCount} object(s) from AD?", "Confirm Deletion", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                return result == MessageBoxResult.Yes;
+            }
+            else if (objectCount <= 20)
+            {
+                string input = ShowInputDialog($"You are about to delete {objectCount} objects.\n\nType '{objectCount}' to confirm.", "Confirm Deletion");
+                return input == objectCount.ToString();
+            }
+            else if (objectCount <= 100)
+            {
+                string expected = $"Delete {objectCount}";
+                string input = ShowInputDialog($"WARNING: You are deleting {objectCount} objects.\n\nType '{expected}' to confirm.", "Confirm Deletion");
+                return string.Equals(input, expected, StringComparison.OrdinalIgnoreCase);
+            }
+            else
+            {
+                string pin = new Random().Next(1000, 9999).ToString();
+                string expected = $"CONFIRM-{pin}";
+                string input = ShowInputDialog($"CRITICAL: You are attempting to delete {objectCount} objects.\n\nType '{expected}' to execute.", "CRITICAL: Mass Deletion");
+                return input == expected;
+            }
+        }
+
+        private string ShowInputDialog(string promptText, string title)
+        {
+            Window inputWindow = new Window
+            {
+                Title = title,
+                Width = 400,
+                Height = 180,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this,
+                ResizeMode = ResizeMode.NoResize,
+                WindowStyle = WindowStyle.ToolWindow
+            };
+
+            var grid = new Grid { Margin = new Thickness(10) };
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            var textBlock = new TextBlock { Text = promptText, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) };
+            Grid.SetRow(textBlock, 0);
+            grid.Children.Add(textBlock);
+
+            var textBox = new TextBox { Margin = new Thickness(0, 0, 0, 10) };
+            Grid.SetRow(textBox, 1);
+            grid.Children.Add(textBox);
+
+            var buttonPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            Grid.SetRow(buttonPanel, 2);
+
+            var okButton = new Button { Content = "OK", Width = 75, Margin = new Thickness(0, 0, 10, 0), IsDefault = true };
+            var cancelButton = new Button { Content = "Cancel", Width = 75, IsCancel = true };
+            
+            string result = null;
+            okButton.Click += (s, e) => { result = textBox.Text; inputWindow.DialogResult = true; };
+            
+            buttonPanel.Children.Add(okButton);
+            buttonPanel.Children.Add(cancelButton);
+            grid.Children.Add(buttonPanel);
+            
+            inputWindow.Content = grid;
+            
+            // Auto-focus the textbox when the window appears
+            inputWindow.Loaded += (s, e) => textBox.Focus();
+
+            inputWindow.ShowDialog();
+            return result;
         }
 
         private void BtnAdMove_Click(object sender, RoutedEventArgs e)
@@ -393,30 +483,32 @@ namespace AdminInfoTools
 
             if (openFileDialog.ShowDialog() == true)
             {
-                TxtAdHostnames.Text = File.ReadAllText(openFileDialog.FileName);
+                TxtComputerObjectList.Text = File.ReadAllText(openFileDialog.FileName);
                 LogAdMessage($"Loaded hostnames from {Path.GetFileName(openFileDialog.FileName)}");
             }
         }
 
         private void BtnAdSaveHosts_Click(object sender, RoutedEventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(TxtAdHostnames.Text))
+            if (string.IsNullOrWhiteSpace(TxtComputerObjectList.Text))
             {
-                MessageBox.Show("There are no hostnames to save.", "Empty", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("There are no computer object list to save.", "Empty", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
-            SaveFileDialog saveFileDialog = new SaveFileDialog 
-            { 
-                Filter = "Text Files (*.txt)|*.txt",
-                FileName = "TargetHostnames.txt",
-                Title = "Save Hostnames"
-            };
-
-            if (saveFileDialog.ShowDialog() == true)
+            try
             {
-                File.WriteAllText(saveFileDialog.FileName, TxtAdHostnames.Text);
-                LogAdMessage($"Saved hostnames to {Path.GetFileName(saveFileDialog.FileName)}");
+                string saveDirectory = @"C:\Projects\Start-InformationMenu\cs\Logs\ComputerObjectList";
+                Directory.CreateDirectory(saveDirectory);
+                string filePath = Path.Combine(saveDirectory, $"ComputerObjectList_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
+
+                File.WriteAllText(filePath, TxtComputerObjectList.Text);
+                LogAdMessage($"Saved computer object list to {Path.GetFileName(filePath)}");
+                MessageBox.Show($"Successfully saved computer object list to:\n{filePath}", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to save computer object list:\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -447,7 +539,7 @@ namespace AdminInfoTools
                 if (computers.Count > 0)
                 {
                     // Join the list with newlines and populate the TextBox
-                    TxtAdHostnames.Text = string.Join(Environment.NewLine, computers);
+                    TxtComputerObjectList.Text = string.Join(Environment.NewLine, computers);
                     StatusText.Text = $"Loaded {computers.Count} computers from OU.";
                 }
                 else
@@ -702,24 +794,20 @@ namespace AdminInfoTools
                 return;
             }
 
-            SaveFileDialog saveFileDialog = new SaveFileDialog
-            {
-                Filter = "CSV File (*.csv)|*.csv",
-                FileName = $"AdminInfoExport_{DateTime.Now:yyyyMMdd_HHmmss}.csv",
-                Title = "Export Results to CSV"
-            };
-
-            if (saveFileDialog.ShowDialog() == true)
-            {
+            string exportDirectory = @"C:\Projects\Start-InformationMenu\cs\Logs\ComputerObjectQuery\";
+            
                 try
                 {
+                Directory.CreateDirectory(exportDirectory);
+                string filePath = Path.Combine(exportDirectory, $"ComputerObjectQuery_{DateTime.Now:yyyyMMdd_HHmmss}.csv");
+
                     if (MainDataGrid.ItemsSource is IEnumerable<ComputerInfoResult> wmiResults && wmiResults.Any())
                     {
-                        CsvExportService.Export(wmiResults, saveFileDialog.FileName);
+                    CsvExportService.Export(wmiResults, filePath);
                     }
                     else if (MainDataGrid.ItemsSource is IEnumerable<AdComputerInfoResult> adResults && adResults.Any())
                     {
-                        CsvExportService.Export(adResults, saveFileDialog.FileName);
+                    CsvExportService.Export(adResults, filePath);
                     }
                     else
                     {
@@ -729,7 +817,7 @@ namespace AdminInfoTools
 
                     System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                     {
-                        FileName = saveFileDialog.FileName,
+                    FileName = filePath,
                         UseShellExecute = true
                     });
                 }
@@ -737,7 +825,6 @@ namespace AdminInfoTools
                 {
                     MessageBox.Show($"Export failed: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
-            }
         }
 
         // --- ACCORDION LOGIC ---
@@ -770,7 +857,7 @@ namespace AdminInfoTools
         private void RdoCreateMode_Changed(object sender, RoutedEventArgs e)
         {
             if (PanelSequentialInput == null) return; // Prevent crashes during window load
-            PanelSequentialInput.Visibility = RdoCreateSequential.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+            PanelSequentialInput.Visibility = RdoPatternCreate.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         }
     }
 }

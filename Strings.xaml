@@ -1,0 +1,97 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    
+    <sys:String x:Key="StrMainMenu">MAIN MENU</sys:String>
+    <sys:String x:Key="StrMenuComputer">💻 Computer Management</sys:String>
+    <sys:String x:Key="StrMenuUser">👤 User Management</sys:String>
+    <sys:String x:Key="StrMenuOptions">🔑 Credentials &amp; Options</sys:String>
+
+    <!-- Generic / Shared -->
+    <sys:String x:Key="StrWindowTitle">Admin Info Tools</sys:String>
+    <sys:String x:Key="StrBtnEnable">✔️ Enable</sys:String>
+    <sys:String x:Key="StrBtnDisable">❌ Disable</sys:String>
+    <sys:String x:Key="StrBtnIconLoad">📂</sys:String>
+    <sys:String x:Key="StrBtnIconSave">💾</sys:String>
+    <sys:String x:Key="StrBtnLoadText">📂 Load</sys:String>
+    <sys:String x:Key="StrBtnSaveText">💾 Save</sys:String>
+    <sys:String x:Key="StrToolTipLoadTxt">Load from Text File</sys:String>
+    <sys:String x:Key="StrToolTipSaveTxt">Save to Text File</sys:String>
+    <sys:String x:Key="StrExpDanger">5. Danger Zone</sys:String>
+
+    <!-- Computer Management -->
+    <sys:String x:Key="StrCompTargetHostnames">Target Hostnames:</sys:String>
+    <sys:String x:Key="StrCompLoadOuToolTip">Select an OU from Settings</sys:String>
+    <sys:String x:Key="StrCompBtnGet">🏢 Get</sys:String>
+    <sys:String x:Key="StrCompExpQuery">1. Query Computers</sys:String>
+    <sys:String x:Key="StrCompBtnGetSysInfo">🔍 Get System Info (WMI)</sys:String>
+    <sys:String x:Key="StrCompBtnGetAdInfo">🌐 Get AD Info</sys:String>
+    <sys:String x:Key="StrCompBtnExportCsv">📊 Export Results to CSV</sys:String>
+    <sys:String x:Key="StrCompExpCreate">2. Create Computer</sys:String>
+    <sys:String x:Key="StrCompLblType">Computer Type:</sys:String>
+    <sys:String x:Key="StrCompLblCreationMode">Creation Mode:</sys:String>
+    <sys:String x:Key="StrCompRdoFromList">From Target Hostnames List</sys:String>
+    <sys:String x:Key="StrCompRdoBulk">Bulk Create by Number</sys:String>
+    <sys:String x:Key="StrCompLblStartHost">Starting Hostname (e.g., AF-W-0001):</sys:String>
+    <sys:String x:Key="StrCompLblNumCreate">Number of Objects to Create:</sys:String>
+    <sys:String x:Key="StrCompBtnCreate">➕ Create Object(s)</sys:String>
+    <sys:String x:Key="StrCompExpStatus">3. Set Status</sys:String>
+    <sys:String x:Key="StrCompExpManage">4. Manage Properties</sys:String>
+    <sys:String x:Key="StrCompLblTargetOu">Target OU:</sys:String>
+    <sys:String x:Key="StrCompBtnMove">➡️ Move Object(s)</sys:String>
+    <sys:String x:Key="StrCompLblDesc">Description:</sys:String>
+    <sys:String x:Key="StrCompBtnSetDesc">✏️ Set Description</sys:String>
+    <sys:String x:Key="StrCompBtnDelete">🗑️ Delete Object(s)</sys:String>
+    <sys:String x:Key="StrCompExpRemote">6. Remote Execution</sys:String>
+    <sys:String x:Key="StrCompBtnRunScript">📜 Run Remote Script</sys:String>
+    <sys:String x:Key="StrCompLblAdHoc">Ad-Hoc Command:</sys:String>
+    <sys:String x:Key="StrCompBtnRunCmd">⚡ Run Command</sys:String>
+    <sys:String x:Key="StrCompTxtIpconfig">ipconfig /flushdns</sys:String>
+    <sys:String x:Key="StrCompLogHeader">Active Directory Operations Log</sys:String>
+
+    <!-- User Management -->
+    <sys:String x:Key="StrUserTargetUsers">Target Users (SAM Account):</sys:String>
+    <sys:String x:Key="StrUserExpQuery">1. Query Users</sys:String>
+    <sys:String x:Key="StrUserBtnQueryAd">🌐 Query AD Users</sys:String>
+    <sys:String x:Key="StrUserBtnExportCsv">📊 Export to CSV</sys:String>
+    <sys:String x:Key="StrUserExpStatus">2. Account Status</sys:String>
+    <sys:String x:Key="StrUserBtnUnlock">🔓 Unlock Account(s)</sys:String>
+    <sys:String x:Key="StrUserExpOrg">3. Organization</sys:String>
+    <sys:String x:Key="StrUserLblDept">Department:</sys:String>
+    <sys:String x:Key="StrUserLblTitle">Job Title:</sys:String>
+    <sys:String x:Key="StrUserBtnSetOrg">🏢 Set Organization Info</sys:String>
+    <sys:String x:Key="StrUserExpSecurity">4. Security Zone</sys:String>
+    <sys:String x:Key="StrUserBtnForcePass">🔑 Force Password Reset (Next Logon)</sys:String>
+    <sys:String x:Key="StrUserLogHeader">User Operations Log</sys:String>
+
+    <!-- Options -->
+    <sys:String x:Key="StrOptTabSession">Session &amp; File</sys:String>
+    <sys:String x:Key="StrOptLblSecurity">Security &amp; Credentials</sys:String>
+    <sys:String x:Key="StrOptDescSecurity">Enter the Active Directory credentials to be used for operations during this session. You can optionally save them locally.</sys:String>
+    <sys:String x:Key="StrOptLblDomainUser">Domain\Username:</sys:String>
+    <sys:String x:Key="StrOptLblPassword">Password:</sys:String>
+    <sys:String x:Key="StrOptChkRemember">Remember Credentials (Saves locally)</sys:String>
+    <sys:String x:Key="StrOptBtnSetCreds">💾 Set Session Credentials</sys:String>
+    <sys:String x:Key="StrOptLblCredStatusDef">Status: Credentials Not Set</sys:String>
+    <sys:String x:Key="StrOptLblAppSet">Application Settings</sys:String>
+    <sys:String x:Key="StrOptDescAppSet">Load the configuration file for Active Directory mapping and tool paths.</sys:String>
+    <sys:String x:Key="StrOptLblConfigPath">Configuration File Path:</sys:String>
+    <sys:String x:Key="StrOptDefConfigPath">C:\Projects\Start-InformationMenu\cs\Settings\settings.jsonc</sys:String>
+    <sys:String x:Key="StrOptBtnBrowse">...</sys:String>
+    <sys:String x:Key="StrOptBtnLoadConfig">⚙️ Load Configuration</sys:String>
+    <sys:String x:Key="StrOptTabEdit">Edit Configuration</sys:String>
+    <sys:String x:Key="StrOptLblEditJson">Edit JSON Settings</sys:String>
+    <sys:String x:Key="StrOptDescEditJson">Modify the core settings. Changes will be serialized and saved back to the loaded configuration file.</sys:String>
+    <sys:String x:Key="StrOptGrpAd">Active Directory</sys:String>
+    <sys:String x:Key="StrOptLblDomainName">DomainName:</sys:String>
+    <sys:String x:Key="StrOptLblTargetServer">TargetServer:</sys:String>
+    <sys:String x:Key="StrOptLblCompPattern">ComputerNamePattern:</sys:String>
+    <sys:String x:Key="StrOptGrpAppConf">AppConfig &amp; ExternalTools</sys:String>
+    <sys:String x:Key="StrOptLblLogsDir">LogsDirectory:</sys:String>
+    <sys:String x:Key="StrOptLblRemTemp">RemoteTempPath:</sys:String>
+    <sys:String x:Key="StrOptLblDefComp">DefaultComputerList:</sys:String>
+    <sys:String x:Key="StrOptLblDefUser">DefaultUserList:</sys:String>
+    <sys:String x:Key="StrOptLblPsExec">PsExecPath:</sys:String>
+    <sys:String x:Key="StrOptLblDameware">DamewarePath:</sys:String>
+    <sys:String x:Key="StrOptBtnSaveConfig">💾 Save Settings to File</sys:String>
+</ResourceDictionary>

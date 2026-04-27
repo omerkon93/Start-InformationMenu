@@ -11,20 +11,15 @@ namespace AdminInfoTools.Services
 
         public LogService()
         {
-            // Resolves to %UserProfile%\Documents\Log
-            string documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-            _logDirectory = Path.Combine(documentsPath, "Log");
-
-            // Note: If you want to use C:\Temp initially, swap the above to:
-            // _logDirectory = @"C:\Temp";
+            _logDirectory = @"C:\Projects\Start-InformationMenu\cs\Logs\ActiveDirectoryOperations";
 
             if (!Directory.Exists(_logDirectory))
             {
                 Directory.CreateDirectory(_logDirectory);
             }
 
-            // Creates a daily rollover log file (e.g., AdOperations_20260426.log)
-            _logFilePath = Path.Combine(_logDirectory, $"AdOperations_{DateTime.Now:yyyyMMdd}.log");
+            // Creates a daily rollover log file (e.g., ActiveDirectoryOperations_20260426.log)
+            _logFilePath = Path.Combine(_logDirectory, $"ActiveDirectoryOperations_{DateTime.Now:yyyyMMdd}.log");
         }
 
         /// <summary>
