@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace AdminInfoTools.Services
@@ -18,12 +19,14 @@ namespace AdminInfoTools.Services
             {
                 if (File.Exists(_credFilePath))
                 {
-                    var parts = File.ReadAllText(_credFilePath).Split('|');
+                    byte[] encryptedData = File.ReadAllBytes(_credFilePath);
+                    byte[] decryptedData = ProtectedData.Unprotect(encryptedData, null, DataProtectionScope.CurrentUser);
+                    var parts = Encoding.UTF8.GetString(decryptedData).Split('|');
+
                     if (parts.Length == 2)
                     {
-                        string user = Encoding.UTF8.GetString(Convert.FromBase64String(parts[0]));
-                        string pass = Encoding.UTF8.GetString(Convert.FromBase64String(parts[1]));
-                        
+                        string user = parts[0];
+                        string pass = parts[1];
                         SetSessionCredentials(user, pass);
 
                         return (user, pass);
@@ -54,9 +57,11 @@ namespace AdminInfoTools.Services
             {
                 if (remember)
                 {
-                    string encUser = Convert.ToBase64String(Encoding.UTF8.GetBytes(username));
-                    string encPass = Convert.ToBase64String(Encoding.UTF8.GetBytes(password));
-                    File.WriteAllText(_credFilePath, $"{encUser}|{encPass}");
+                    string credentialsToSave = $"{username}|{password}";
+                    byte[] dataToEncrypt = Encoding.UTF8.GetBytes(credentialsToSave);
+                    byte[] encryptedData = ProtectedData.Protect(dataToEncrypt, null, DataProtectionScope.CurrentUser);
+
+                    File.WriteAllBytes(_credFilePath, encryptedData);
                 }
                 else if (File.Exists(_credFilePath))
                 {

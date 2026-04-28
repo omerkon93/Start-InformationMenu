@@ -10,4 +10,3 @@ namespace AdminInfoTools;
 public partial class App : Application
 {
 }
-

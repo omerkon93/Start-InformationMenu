@@ -5,6 +5,7 @@
     <sys:String x:Key="StrMainMenu">MAIN MENU</sys:String>
     <sys:String x:Key="StrMenuComputer">💻 Computer Management</sys:String>
     <sys:String x:Key="StrMenuUser">👤 User Management</sys:String>
+    <sys:String x:Key="StrMenuOu">📁 OU Management</sys:String>
     <sys:String x:Key="StrMenuOptions">🔑 Credentials &amp; Options</sys:String>
 
     <!-- Generic / Shared -->
@@ -63,6 +64,9 @@
     <sys:String x:Key="StrUserExpSecurity">4. Security Zone</sys:String>
     <sys:String x:Key="StrUserBtnForcePass">🔑 Force Password Reset (Next Logon)</sys:String>
     <sys:String x:Key="StrUserLogHeader">User Operations Log</sys:String>
+
+    <!-- OU Management -->
+    <sys:String x:Key="StrOuRefresh">🔄 Refresh Hierarchy</sys:String>
 
     <!-- Options -->
     <sys:String x:Key="StrOptTabSession">Session &amp; File</sys:String>

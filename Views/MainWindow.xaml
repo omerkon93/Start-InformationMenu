@@ -1,0 +1,445 @@
+﻿<Window x:Class="AdminInfoTools.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{StaticResource StrWindowTitle}" Height="650" Width="1050" WindowStartupLocation="CenterScreen"
+        Icon="/Assets/app_icon.ico">
+    
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </Window.Resources>
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="280"/> 
+            <ColumnDefinition Width="*"/>   
+        </Grid.ColumnDefinitions>
+        
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>    
+            <RowDefinition Height="30"/>   
+        </Grid.RowDefinitions>
+
+        <Border Grid.Column="0" Grid.Row="0" Background="#2D2D30">
+            <StackPanel Margin="10">
+                <TextBlock Text="{StaticResource StrMainMenu}" Foreground="White" FontSize="16" FontWeight="Bold" Margin="0,10,0,20" HorizontalAlignment="Center"/>
+                
+                <Button x:Name="BtnComputerMenu" Content="{StaticResource StrMenuComputer}" Height="40" Margin="0,5" Background="#3E3E42" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                <Button x:Name="BtnUserMenu" Content="{StaticResource StrMenuUser}" Height="40" Margin="0,5" Background="#3E3E42" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                <Button x:Name="BtnOuMenu" Content="{StaticResource StrMenuOu}" Height="40" Margin="0,5" Background="#3E3E42" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                <Button x:Name="BtnNtfsMenu" Content="📁 NTFS Permissions" Height="40" Margin="0,5" Background="#3E3E42" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                <Button x:Name="BtnOptionsMenu" Content="{StaticResource StrMenuOptions}" Height="40" Margin="0,5" Background="#3E3E42" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Column="1" Grid.Row="0" Margin="15">
+            
+            <Grid x:Name="ViewComputerManagement" Visibility="Visible">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="280"/> 
+                    <ColumnDefinition Width="*"/>   
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Margin="0,0,20,0">
+                    
+                    <Grid Margin="0,0,0,5">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        
+                        <TextBlock Text="{StaticResource StrCompTargetHostnames}" FontWeight="Bold" VerticalAlignment="Center"/>
+                        
+                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,5,0,0">
+                            <ComboBox x:Name="CmbLoadOu" ItemsSource="{Binding SpecialOUs}" SelectedValue="{Binding SelectedLoadOuValue}" MinWidth="120" Margin="0,0,5,0" DisplayMemberPath="Key" SelectedValuePath="Value" ToolTip="{StaticResource StrCompLoadOuToolTip}"/>
+                            <Button x:Name="BtnLoadFromOu" Command="{Binding LoadFromOuCommand}" Content="{StaticResource StrCompBtnGet}" Margin="0,0,5,0" Padding="15,2" Cursor="Hand"/>
+                            <Button x:Name="BtnAdLoadHosts" Command="{Binding LoadHostsCommand}" Content="{StaticResource StrBtnIconLoad}" Margin="0,0,5,0" Padding="5,2" Cursor="Hand" ToolTip="{StaticResource StrToolTipLoadTxt}"/>
+                            <Button x:Name="BtnAdSaveHosts" Command="{Binding SaveHostsCommand}" Content="{StaticResource StrBtnIconSave}" Margin="0,0,0,0" Padding="5,2" Cursor="Hand" ToolTip="{StaticResource StrToolTipSaveTxt}"/>
+                        </StackPanel>
+                    </Grid>
+                    
+                    <TextBox x:Name="TxtComputerObjectList" Text="{Binding TargetHostnamesText, UpdateSourceTrigger=PropertyChanged}" Height="90" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Margin="0,0,0,10"/>
+
+                    <Expander x:Name="ExpanderQuery" Header="{StaticResource StrCompExpQuery}" FontWeight="Bold" IsExpanded="True" Expanded="Accordion_Expanded" Margin="0,0,0,5">
+                        <StackPanel Margin="0,5,0,0" TextElement.FontWeight="Normal">
+                            <Button x:Name="BtnGetInfo" Command="{Binding GetInfoCommand}" Content="{StaticResource StrCompBtnGetSysInfo}" Height="25" Margin="0,0,0,5" Background="#007ACC" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                            <Button x:Name="BtnGetAdInfo" Command="{Binding GetAdInfoCommand}" Content="{StaticResource StrCompBtnGetAdInfo}" Height="25" Margin="0,0,0,5" Background="#17A2B8" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                            <Button x:Name="BtnExport" Command="{Binding ExportCommand}" Content="{StaticResource StrCompBtnExportCsv}" Height="25" Margin="0,0,0,10"/>
+                        </StackPanel>
+                    </Expander>
+
+                    <Expander x:Name="ExpanderCreate" Header="{StaticResource StrCompExpCreate}" FontWeight="Bold" Expanded="Accordion_Expanded" Margin="0,0,0,5">
+                        <StackPanel Margin="0,5,0,0" TextElement.FontWeight="Normal">
+                            
+                            <TextBlock Text="{StaticResource StrCompLblType}" Margin="0,0,0,2"/>
+                            <ComboBox x:Name="CmbComputerType" ItemsSource="{Binding ComputerTypes}" SelectedValue="{Binding SelectedComputerTypeKey}" Margin="0,0,0,10" DisplayMemberPath="Key" SelectedValuePath="Key"/>
+
+                            <TextBlock Text="{StaticResource StrCompLblCreationMode}" FontWeight="Bold" Margin="0,0,0,2"/>
+                            <RadioButton x:Name="RdoCreateFromList" IsChecked="{Binding IsListCreate}" Content="{StaticResource StrCompRdoFromList}" Margin="0,0,0,5"/>
+                            <RadioButton x:Name="RdoPatternCreate" IsChecked="{Binding IsPatternCreate}" Content="{StaticResource StrCompRdoBulk}" Margin="0,0,0,10"/>
+
+                            <StackPanel x:Name="PanelSequentialInput" Visibility="{Binding IsPatternCreate, Converter={StaticResource BoolToVis}}" Margin="10,0,0,10">
+                                <TextBlock Text="{StaticResource StrCompLblStartHost}" Margin="0,0,0,2"/>
+                                <TextBox x:Name="TxtStartHostname" Text="{Binding StartHostname, UpdateSourceTrigger=PropertyChanged}" Height="25" Margin="0,0,0,5" VerticalContentAlignment="Center"/>
+                                <TextBlock Text="{StaticResource StrCompLblNumCreate}" Margin="0,0,0,2"/>
+                                <TextBox x:Name="TxtCreateCount" Text="{Binding CreateCount, UpdateSourceTrigger=PropertyChanged}" Height="25" VerticalContentAlignment="Center"/>
+                            </StackPanel>
+
+                            <Button x:Name="BtnAdCreate" Command="{Binding CreateCommand}" Content="{StaticResource StrCompBtnCreate}" Height="25" Margin="0,0,0,10" Background="#28A745" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                        </StackPanel>
+                    </Expander>
+
+                    <Expander x:Name="ExpanderStatus" Header="{StaticResource StrCompExpStatus}" FontWeight="Bold" Expanded="Accordion_Expanded" Margin="0,0,0,5">
+                        <StackPanel Margin="0,5,0,0" TextElement.FontWeight="Normal">
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Button x:Name="BtnAdEnable" Command="{Binding EnableCommand}" Content="{StaticResource StrBtnEnable}" Grid.Column="0" Height="25" Margin="0,0,5,0" Background="#007ACC" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                                <Button x:Name="BtnAdDisable" Command="{Binding DisableCommand}" Content="{StaticResource StrBtnDisable}" Grid.Column="1" Height="25" Margin="5,0,0,0" Background="#6C757D" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                            </Grid>
+                        </StackPanel>
+                    </Expander>
+
+                    <Expander x:Name="ExpanderManage" Header="{StaticResource StrCompExpManage}" FontWeight="Bold" Expanded="Accordion_Expanded" Margin="0,0,0,5">
+                        <StackPanel Margin="0,5,0,0" TextElement.FontWeight="Normal">
+                            <TextBlock Text="{StaticResource StrCompLblTargetOu}" Margin="0,0,0,2"/>
+                            <ComboBox x:Name="CmbTargetOu" ItemsSource="{Binding SpecialOUs}" SelectedValue="{Binding SelectedTargetOuValue}" Margin="0,0,0,5" DisplayMemberPath="Key" SelectedValuePath="Value"/>
+                            <Button x:Name="BtnAdMove" Command="{Binding MoveCommand}" Content="{StaticResource StrCompBtnMove}" Height="25" Margin="0,0,0,10" Background="#17A2B8" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                            
+                            <TextBlock Text="{StaticResource StrCompLblDesc}" Margin="0,0,0,2"/>
+                            <TextBox x:Name="TxtAdDescription" Text="{Binding AdDescription, UpdateSourceTrigger=PropertyChanged}" Height="25" Margin="0,0,0,5" Padding="2" VerticalContentAlignment="Center"/>
+                            <Button x:Name="BtnAdSetDescription" Command="{Binding SetDescriptionCommand}" Content="{StaticResource StrCompBtnSetDesc}" Height="25" Margin="0,0,0,10" Background="#6F42C1" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                        </StackPanel>
+                    </Expander>
+
+                    <Expander x:Name="ExpanderDelete" Header="{StaticResource StrExpDanger}" Foreground="Red" FontWeight="Bold" Expanded="Accordion_Expanded" Margin="0,0,0,5">
+                        <StackPanel Margin="0,5,0,0" TextElement.FontWeight="Normal">
+                            <Button x:Name="BtnAdDelete" Command="{Binding DeleteCommand}" Content="{StaticResource StrCompBtnDelete}" Height="25" Background="#DC3545" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                        </StackPanel>
+                    </Expander>
+
+                    <Expander x:Name="ExpanderRemote" Header="{StaticResource StrCompExpRemote}" FontWeight="Bold" Expanded="Accordion_Expanded" Margin="0,0,0,5">
+                        <StackPanel Margin="0,5,0,0" TextElement.FontWeight="Normal">
+                            <Button x:Name="BtnRunScript" Command="{Binding RunScriptCommand}" Content="{StaticResource StrCompBtnRunScript}" Height="25" Margin="0,0,0,5" Background="#17A2B8" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                            <TextBlock Text="{StaticResource StrCompLblAdHoc}" Margin="0,5,0,2"/>
+                            <TextBox x:Name="TxtCommand" Text="{Binding CommandText, UpdateSourceTrigger=PropertyChanged}" Height="25" Margin="0,0,0,5" Padding="2" VerticalContentAlignment="Center"/>
+                            <Button x:Name="BtnRunCommand" Command="{Binding RunCommandCommand}" Content="{StaticResource StrCompBtnRunCmd}" Height="25" Margin="0,0,0,10" Background="#6F42C1" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                        </StackPanel>
+                    </Expander>
+                </StackPanel>
+
+                <Grid Grid.Column="1">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="120"/>
+                    </Grid.RowDefinitions>
+                    
+                    <DataGrid x:Name="MainDataGrid" ItemsSource="{Binding CurrentResults}" Grid.Row="0" AutoGenerateColumns="True" IsReadOnly="True" AlternatingRowBackground="#F0F0F0" HeadersVisibility="Column" Margin="0,0,0,10"/>
+                    
+                    <GroupBox Grid.Row="1" Header="{StaticResource StrCompLogHeader}">
+                        <ListBox x:Name="ListAdLogs" ItemsSource="{Binding Logs}" Background="#1E1E1E" Foreground="#00FF00" FontFamily="Consolas" Margin="5"/>
+                    </GroupBox>
+                </Grid>
+            </Grid>
+
+            <Grid x:Name="ViewUserManagement" Visibility="Collapsed">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="280"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Margin="0,0,20,0">
+                    <Grid Margin="0,0,0,5">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="{StaticResource StrUserTargetUsers}" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,5,0,0">
+                            <Button x:Name="BtnUserLoadHosts" Content="{StaticResource StrBtnLoadText}" Margin="0,0,5,0" Padding="15,2" Cursor="Hand"/>
+                            <Button x:Name="BtnUserSaveHosts" Content="{StaticResource StrBtnSaveText}" Margin="0,0,0,0" Padding="15,2" Cursor="Hand"/>
+                        </StackPanel>
+                    </Grid>
+                    <TextBox x:Name="TxtUsernames" Text="{Binding TargetUsersText, UpdateSourceTrigger=PropertyChanged}" Height="90" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Margin="0,0,0,10"/>
+
+                    <Expander x:Name="ExpUserQuery" Header="{StaticResource StrUserExpQuery}" FontWeight="Bold" IsExpanded="True" Expanded="UserAccordion_Expanded" Margin="0,0,0,5">
+                        <StackPanel Margin="0,5,0,0" TextElement.FontWeight="Normal">
+                            <Button x:Name="BtnGetUserAdInfo" Content="{StaticResource StrUserBtnQueryAd}" Command="{Binding GetUserInfoCommand}" Height="25" Margin="0,0,0,5" Background="#17A2B8" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                            <Button Command="{Binding ExportUsersCommand}" Content="{StaticResource StrUserBtnExportCsv}" Height="25" Margin="0,0,0,10"/>
+                        </StackPanel>
+                    </Expander>
+
+                    <Expander x:Name="ExpUserStatus" Header="{StaticResource StrUserExpStatus}" FontWeight="Bold" Expanded="UserAccordion_Expanded" Margin="0,0,0,5">
+                        <StackPanel Margin="0,5,0,0" TextElement.FontWeight="Normal">
+                            <Button Command="{Binding UnlockUserCommand}" Content="{StaticResource StrUserBtnUnlock}" Height="25" Margin="0,0,0,5" Background="#28A745" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Button Command="{Binding EnableUserCommand}" Content="{StaticResource StrBtnEnable}" Grid.Column="0" Height="25" Margin="0,0,5,0" Background="#007ACC" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                                <Button Command="{Binding DisableUserCommand}" Content="{StaticResource StrBtnDisable}" Grid.Column="1" Height="25" Margin="5,0,0,0" Background="#6C757D" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                            </Grid>
+                        </StackPanel>
+                    </Expander>
+
+                    <Expander x:Name="ExpUserOrg" Header="{StaticResource StrUserExpOrg}" FontWeight="Bold" Expanded="UserAccordion_Expanded" Margin="0,0,0,5">
+                        <StackPanel Margin="0,5,0,0" TextElement.FontWeight="Normal">
+                            <TextBlock Text="{StaticResource StrUserLblDept}" Margin="0,0,0,2"/>
+                            <TextBox x:Name="TxtUserDept" Height="25" Margin="0,0,0,5" Padding="2"/>
+                            <TextBlock Text="{StaticResource StrUserLblTitle}" Margin="0,0,0,2"/>
+                            <TextBox x:Name="TxtUserTitle" Height="25" Margin="0,0,0,5" Padding="2"/>
+                            <Button x:Name="BtnUserSetOrg" Content="{StaticResource StrUserBtnSetOrg}" Height="25" Margin="0,0,0,10" Background="#6F42C1" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                        </StackPanel>
+                    </Expander>
+                    
+                    <Expander x:Name="ExpUserSecurity" Header="{StaticResource StrUserExpSecurity}" Foreground="Red" FontWeight="Bold" Expanded="UserAccordion_Expanded" Margin="0,0,0,5">
+                        <StackPanel Margin="0,5,0,0" TextElement.FontWeight="Normal">
+                            <Button x:Name="BtnUserForcePassReset" Content="{StaticResource StrUserBtnForcePass}" Height="25" Background="#DC3545" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                        </StackPanel>
+                    </Expander>
+                </StackPanel>
+
+                <Grid Grid.Column="1">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="120"/>
+                    </Grid.RowDefinitions>
+                    <DataGrid x:Name="UserDataGrid" ItemsSource="{Binding UserResults}" Grid.Row="0" AutoGenerateColumns="True" IsReadOnly="True" AlternatingRowBackground="#F0F0F0" HeadersVisibility="Column" Margin="0,0,0,10"/>
+                    <GroupBox Grid.Row="1" Header="{StaticResource StrUserLogHeader}">
+                        <ListBox ItemsSource="{Binding UserLogs}" Background="#1E1E1E" Foreground="#00FF00" FontFamily="Consolas" Margin="5"/>
+                    </GroupBox>
+                </Grid>
+            </Grid>
+
+            <Grid x:Name="ViewOuManagement" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <Button x:Name="BtnRefreshOu" Command="{Binding RefreshCommand}" Content="{StaticResource StrOuRefresh}" Height="30" Width="150" HorizontalAlignment="Left" Margin="0,0,0,10" Background="#007ACC" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                
+                <TreeView x:Name="OuTreeView" ItemsSource="{Binding OuHierarchy}" Grid.Row="1" Background="#1E1E1E" Foreground="White" BorderThickness="0" Margin="0,0,0,10">
+                    
+                    <TreeView.Resources>
+                        <Style TargetType="TreeViewItem">
+                            <Setter Property="Foreground" Value="White"/>
+                            <EventSetter Event="PreviewMouseRightButtonDown" Handler="OuTreeViewItem_PreviewMouseRightButtonDown"/>
+                        </Style>
+                    </TreeView.Resources>
+                    
+                    <TreeView.ItemTemplate>
+                        <HierarchicalDataTemplate ItemsSource="{Binding Children}">
+                            <TextBlock Text="{Binding Name}" Foreground="White" Padding="4" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=TreeView}}">
+                                <TextBlock.ContextMenu>
+                                    <ContextMenu Background="#2D2D30" BorderBrush="#3E3E42" BorderThickness="1">
+                                        <MenuItem Header="Create Sub-OU" Foreground="White" Command="{Binding PlacementTarget.Tag.CreateOuCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                        <MenuItem Header="Rename OU" Foreground="White" Command="{Binding PlacementTarget.Tag.RenameOuCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                        <MenuItem Header="Move OU" Foreground="White" Command="{Binding PlacementTarget.Tag.MoveOuCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                        <Separator Background="#3E3E42"/>
+                                        <MenuItem Header="Delete OU" Foreground="#FF6B6B" Command="{Binding PlacementTarget.Tag.DeleteOuCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"/>
+                                    </ContextMenu>
+                                </TextBlock.ContextMenu>
+                            </TextBlock>
+                        </HierarchicalDataTemplate>
+                    </TreeView.ItemTemplate>
+                </TreeView>
+            </Grid>
+
+            <Grid x:Name="ViewNtfsManagement" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,15">
+                    <TextBlock Text="Target Path (Local or UNC):" Foreground="White" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,0"/>
+                    
+                    <TextBox x:Name="TxtNtfsPath" Text="{Binding TargetPath, UpdateSourceTrigger=PropertyChanged}" 
+                            Foreground="Black" Width="400" Height="25" VerticalContentAlignment="Center" Margin="0,0,10,0"/>
+                            
+                    <Button x:Name="BtnNtfsBrowse" Command="{Binding BrowseCommand}" Content="..." Width="30" Height="25" Margin="0,0,10,0" Cursor="Hand"/>
+                    <Button x:Name="BtnNtfsLoad" Command="{Binding LoadPermissionsCommand}" Content="📂 Load Permissions" Height="25" Padding="10,0" Background="#007ACC" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                </StackPanel>
+
+                <DataGrid x:Name="NtfsDataGrid" Grid.Row="1" ItemsSource="{Binding Permissions}" SelectedItem="{Binding SelectedPermission}" AutoGenerateColumns="True" IsReadOnly="True" AlternatingRowBackground="#F0F0F0" Foreground="Black" HeadersVisibility="Column" Margin="0,0,0,15"/>
+
+                <GroupBox Grid.Row="2" Header="Modify Permissions" Foreground="White" BorderBrush="#3E3E42" Padding="10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Text="User/Group (e.g., DOMAIN\User):" Foreground="White" Grid.Row="0" Grid.Column="0" Margin="0,0,10,5" VerticalAlignment="Center"/>
+                        <Grid Grid.Row="0" Grid.Column="1" Margin="0,0,15,5">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <TextBox x:Name="TxtNtfsIdentity" Text="{Binding TargetIdentities, UpdateSourceTrigger=PropertyChanged}" 
+                                    Foreground="{Binding IdentityForeground}" 
+                                    Grid.Column="0" Height="60" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" ToolTip="Enter multiple users/groups separated by commas, semicolons, or new lines."/>
+                                    
+                            <Button x:Name="BtnNtfsCheckName" Command="{Binding CheckNameCommand}" Grid.Column="1" VerticalAlignment="Top" Content="Check Name" Height="25" Margin="5,0,0,0" Padding="10,0" Background="#17A2B8" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                            <Button x:Name="BtnNtfsLoadFile" Command="{Binding LoadIdentitiesFileCommand}" Grid.Column="2" VerticalAlignment="Top" Content="Load File" Height="25" Margin="5,0,0,0" Padding="10,0" Background="#6C757D" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                        </Grid>
+                        
+                        <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,5,0,0">
+                            <TextBlock Text="Rights:" Foreground="White" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            
+                            <ComboBox x:Name="CmbNtfsRights" ItemsSource="{Binding AvailableRights}" SelectedItem="{Binding SelectedRight}" Width="150" Height="25" Margin="0,0,15,0" Foreground="Black">
+                                <ComboBox.ItemContainerStyle>
+                                    <Style TargetType="ComboBoxItem">
+                                        <Setter Property="Foreground" Value="Black"/>
+                                    </Style>
+                                </ComboBox.ItemContainerStyle>
+                            </ComboBox>
+                            
+                            <TextBlock Text="Type:" Foreground="White" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            
+                            <ComboBox x:Name="CmbNtfsAccessType" ItemsSource="{Binding AvailableAccessTypes}" SelectedItem="{Binding SelectedAccessType}" Width="100" Height="25" Margin="0,0,15,0" Foreground="Black">
+                                <ComboBox.ItemContainerStyle>
+                                    <Style TargetType="ComboBoxItem">
+                                        <Setter Property="Foreground" Value="Black"/>
+                                    </Style>
+                                </ComboBox.ItemContainerStyle>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="0" Grid.RowSpan="2" Grid.Column="2" Orientation="Vertical" VerticalAlignment="Center">
+                            <Button x:Name="BtnNtfsAdd" Command="{Binding AddPermissionCommand}" Content="➕ Add Rule" Height="25" Width="100" Margin="0,0,0,5" Background="#28A745" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                            <Button x:Name="BtnNtfsRemove" Command="{Binding RemovePermissionCommand}" Content="❌ Remove Rule" Height="25" Width="100" Background="#DC3545" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                        </StackPanel>
+                    </Grid>
+                </GroupBox>
+            </Grid>
+
+            <Grid x:Name="ViewOptions" Visibility="Collapsed">
+                <TabControl Margin="5" Background="Transparent" BorderThickness="0">
+                    
+                    <TabItem Header="{StaticResource StrOptTabSession}">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="15">
+                                <TextBlock Text="{StaticResource StrOptLblSecurity}" FontSize="20" FontWeight="Bold" Margin="0,0,0,10"/>
+                                <TextBlock Text="{StaticResource StrOptDescSecurity}" TextWrapping="Wrap" Margin="0,0,0,20" Foreground="Gray"/>
+                                
+                                <TextBlock Text="{StaticResource StrOptLblDomainUser}" Margin="0,0,0,5" FontWeight="Bold"/>
+                                <TextBox x:Name="TxtAdUsername" Text="{Binding AdUsername, UpdateSourceTrigger=PropertyChanged}" Height="30" Margin="0,0,0,15" VerticalContentAlignment="Center"/>
+
+                                <TextBlock Text="{StaticResource StrOptLblPassword}" Margin="0,0,0,5" FontWeight="Bold"/>
+                                <PasswordBox x:Name="TxtAdPassword" Height="30" Margin="0,0,0,10" VerticalContentAlignment="Center"/>
+                                
+                                <CheckBox x:Name="ChkSaveCredentials" IsChecked="{Binding SaveCredentialsChecked}" Content="{StaticResource StrOptChkRemember}" Margin="0,0,0,20" HorizontalAlignment="Left"/>
+
+                                <Button x:Name="BtnSaveCredentials" Command="{Binding SaveCredentialsCommand}" CommandParameter="{Binding ElementName=TxtAdPassword}" Content="{StaticResource StrOptBtnSetCreds}" Height="35" Background="#007ACC" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                                <TextBlock x:Name="LblCredStatus" Text="{Binding CredentialStatusMessage}" Foreground="{Binding CredentialStatusColor}" Margin="0,15,0,0" FontWeight="Bold"/>
+                                
+                                <Separator Margin="0,30,0,20"/>
+
+                                <TextBlock Text="{StaticResource StrOptLblAppSet}" FontSize="20" FontWeight="Bold" Margin="0,0,0,10"/>
+                                <TextBlock Text="{StaticResource StrOptDescAppSet}" TextWrapping="Wrap" Margin="0,0,0,20" Foreground="Gray"/>
+
+                                <TextBlock Text="{StaticResource StrOptLblConfigPath}" Margin="0,0,0,5" FontWeight="Bold"/>
+                                <Grid Margin="0,0,0,15">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="TxtSettingsPath" Text="{Binding SettingsPath, UpdateSourceTrigger=PropertyChanged}" Grid.Column="0" Height="30" VerticalContentAlignment="Center"/>
+                                    <Button x:Name="BtnBrowseSettings" Command="{Binding BrowseSettingsCommand}" Grid.Column="1" Content="{StaticResource StrOptBtnBrowse}" Height="30" Margin="5,0,0,0" Cursor="Hand" Padding="10,2"/>
+                                </Grid>
+
+                                <Button x:Name="BtnLoadSettingsOptions" Command="{Binding LoadSettingsCommand}" Content="{StaticResource StrOptBtnLoadConfig}" Height="35" Background="#28A745" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <TabItem Header="{StaticResource StrOptTabEdit}">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="15">
+                                <TextBlock Text="{StaticResource StrOptLblEditJson}" FontSize="20" FontWeight="Bold" Margin="0,0,0,10"/>
+                                <TextBlock Text="{StaticResource StrOptDescEditJson}" TextWrapping="Wrap" Margin="0,0,0,20" Foreground="Gray"/>
+                                
+                                <GroupBox Header="{StaticResource StrOptGrpAd}" Margin="0,0,0,15" Padding="10" Foreground="Black" BorderBrush="#3E3E42">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="35"/>
+                                            <RowDefinition Height="35"/>
+                                            <RowDefinition Height="35"/>
+                                        </Grid.RowDefinitions>
+                                        
+                                        <TextBlock Text="{StaticResource StrOptLblDomainName}" Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,0"/>
+                                        <TextBox x:Name="TxtEditDomainName" Text="{Binding EditDomainName, UpdateSourceTrigger=PropertyChanged}" Grid.Row="0" Grid.Column="1" Height="25" VerticalContentAlignment="Center"/>
+                                        
+                                        <TextBlock Text="{StaticResource StrOptLblTargetServer}" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,0"/>
+                                        <TextBox x:Name="TxtEditTargetServer" Text="{Binding EditTargetServer, UpdateSourceTrigger=PropertyChanged}" Grid.Row="1" Grid.Column="1" Height="25" VerticalContentAlignment="Center"/>
+
+                                        <TextBlock Text="{StaticResource StrOptLblCompPattern}" Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,0"/>
+                                        <TextBox x:Name="TxtEditCompPattern" Text="{Binding EditCompPattern, UpdateSourceTrigger=PropertyChanged}" Grid.Row="2" Grid.Column="1" Height="25" VerticalContentAlignment="Center"/>
+                                    </Grid>
+                                </GroupBox>
+
+                                <GroupBox Header="{StaticResource StrOptGrpAppConf}" Margin="0,0,0,20" Padding="10" Foreground="Black" BorderBrush="#3E3E42">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="35"/>
+                                            <RowDefinition Height="35"/>
+                                            <RowDefinition Height="35"/>
+                                            <RowDefinition Height="35"/>
+                                            <RowDefinition Height="35"/>
+                                            <RowDefinition Height="35"/>
+                                        </Grid.RowDefinitions>
+                                        
+                                        <TextBlock Text="{StaticResource StrOptLblLogsDir}" Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,0"/>
+                                        <TextBox x:Name="TxtEditLogsDir" Text="{Binding EditLogsDir, UpdateSourceTrigger=PropertyChanged}" Grid.Row="0" Grid.Column="1" Height="25" VerticalContentAlignment="Center"/>
+                                        
+                                        <TextBlock Text="{StaticResource StrOptLblRemTemp}" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,0"/>
+                                        <TextBox x:Name="TxtEditRemoteTemp" Text="{Binding EditRemoteTemp, UpdateSourceTrigger=PropertyChanged}" Grid.Row="1" Grid.Column="1" Height="25" VerticalContentAlignment="Center"/>
+
+                                        <TextBlock Text="{StaticResource StrOptLblDefComp}" Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,0"/>
+                                        <TextBox x:Name="TxtEditDefCompList" Text="{Binding EditDefCompList, UpdateSourceTrigger=PropertyChanged}" Grid.Row="2" Grid.Column="1" Height="25" VerticalContentAlignment="Center"/>
+
+                                        <TextBlock Text="{StaticResource StrOptLblDefUser}" Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,0"/>
+                                        <TextBox x:Name="TxtEditDefUserList" Text="{Binding EditDefUserList, UpdateSourceTrigger=PropertyChanged}" Grid.Row="3" Grid.Column="1" Height="25" VerticalContentAlignment="Center"/>
+
+                                        <TextBlock Text="{StaticResource StrOptLblPsExec}" Grid.Row="4" Grid.Column="0" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,0"/>
+                                        <TextBox x:Name="TxtEditPsExec" Text="{Binding EditPsExec, UpdateSourceTrigger=PropertyChanged}" Grid.Row="4" Grid.Column="1" Height="25" VerticalContentAlignment="Center"/>
+
+                                        <TextBlock Text="{StaticResource StrOptLblDameware}" Grid.Row="5" Grid.Column="0" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,0"/>
+                                        <TextBox x:Name="TxtEditDameware" Text="{Binding EditDameware, UpdateSourceTrigger=PropertyChanged}" Grid.Row="5" Grid.Column="1" Height="25" VerticalContentAlignment="Center"/>
+                                    </Grid>
+                                </GroupBox>
+                                <Button x:Name="BtnSaveConfigToDisk" Command="{Binding SaveConfigCommand}" Content="{StaticResource StrOptBtnSaveConfig}" Height="35" Background="#17A2B8" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+                    
+                </TabControl>
+            </Grid>
+        </Grid>
+
+        <StatusBar Grid.Column="0" Grid.ColumnSpan="2" Grid.Row="1" Background="#007ACC" Foreground="White">
+            <StatusBarItem>
+                <TextBlock x:Name="StatusText" Text="{Binding StatusText}"/>
+            </StatusBarItem>
+        </StatusBar>
+    </Grid>
+</Window>

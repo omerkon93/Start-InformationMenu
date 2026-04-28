@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
 using System.DirectoryServices;
 using System.DirectoryServices.AccountManagement;
+using System.Linq;
 using AdminInfoTools.Models;
 
 namespace AdminInfoTools.Services
@@ -205,6 +208,108 @@ namespace AdminInfoTools.Services
             {
                 _logger.LogAdOperation("MoveComputer", hostname, "ERROR", ex.Message);
                 return false;
+            }
+        }
+
+        public string ResolveSidToName(string sidString)
+        {
+            try
+            {
+                using (var context = GetDomainContext()) 
+                {
+                    using (var principal = Principal.FindByIdentity(context, IdentityType.Sid, sidString))
+                    {
+                        if (principal != null)
+                        {
+                            // Attempt to get the NetBIOS domain name, fallback to TargetServer if null
+                            string domain = principal.Context.Name ?? _adConfig.TargetServer;
+                            return $"{domain}\\{principal.SamAccountName}";
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogAdOperation("ResolveSid", sidString, "ERROR", ex.Message);
+            }
+            
+            return sidString; // Fallback to returning the raw SID if it fails completely
+        }
+
+        public bool IsValidAdIdentity(string identityName)
+        {
+            // 1. Strip domain prefix if present (e.g., "DOMAIN\Username" -> "Username")
+            string searchName = identityName.Contains("\\") ? identityName.Split('\\').Last() : identityName;
+
+            try
+            {
+                using (var context = GetDomainContext())
+                {
+                    // Check if it's a valid Domain User
+                    using (var user = System.DirectoryServices.AccountManagement.UserPrincipal.FindByIdentity(context, searchName))
+                    {
+                        if (user != null) return true;
+                    }
+                    
+                    // Check if it's a valid Domain Group
+                    using (var group = System.DirectoryServices.AccountManagement.GroupPrincipal.FindByIdentity(context, searchName))
+                    {
+                        if (group != null) return true;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogAdOperation("CheckIdentity", identityName, "ERROR", ex.Message);
+            }
+            
+            // 2. Fallback: Check if it's a valid local or built-in account (e.g., SYSTEM, Administrators)
+            try
+            {
+                var ntAccount = new System.Security.Principal.NTAccount(identityName);
+                ntAccount.Translate(typeof(System.Security.Principal.SecurityIdentifier));
+                return true;
+            }
+            catch (System.Security.Principal.IdentityNotMappedException)
+            {
+                return false;
+            }
+        }
+
+        public System.Security.Principal.SecurityIdentifier GetSidFromIdentity(string identityName)
+        {
+            // 1. Strip domain prefix if present (e.g., "DOMAIN\Username" -> "Username")
+            string searchName = identityName.Contains("\\") ? identityName.Split('\\').Last() : identityName;
+
+            // 2. Try resolving via our explicit Active Directory connection
+            try
+            {
+                using (var context = GetDomainContext())
+                {
+                    using (var user = System.DirectoryServices.AccountManagement.UserPrincipal.FindByIdentity(context, searchName))
+                    {
+                        if (user != null) return user.Sid;
+                    }
+                    using (var group = System.DirectoryServices.AccountManagement.GroupPrincipal.FindByIdentity(context, searchName))
+                    {
+                        if (group != null) return group.Sid;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogAdOperation("GetSid", identityName, "ERROR", ex.Message);
+            }
+
+            // 3. Fallback: Try resolving local/built-in accounts (e.g., "SYSTEM", "Administrators")
+            try
+            {
+                var ntAccount = new System.Security.Principal.NTAccount(identityName);
+                return (System.Security.Principal.SecurityIdentifier)ntAccount.Translate(typeof(System.Security.Principal.SecurityIdentifier));
+            }
+            catch
+            {
+                return null;
             }
         }
 
@@ -481,6 +586,161 @@ namespace AdminInfoTools.Services
             }
 
             return computerNames;
+        }
+
+        // --- OU MANAGEMENT METHODS ---
+        public ObservableCollection<OuNode> GetOuHierarchy()
+        {
+            _logger.LogOuOperation("GetOuHierarchy", "Domain", "STARTED");
+            var rootNodes = new ObservableCollection<OuNode>();
+            
+            try
+            {
+                string rootLdap = $"LDAP://{_adConfig.TargetServer}";
+                using (DirectoryEntry rootEntry = new DirectoryEntry(rootLdap, DomainUser, DomainPass))
+                using (DirectorySearcher searcher = new DirectorySearcher(rootEntry))
+                {
+                    searcher.Filter = "(objectCategory=organizationalUnit)";
+                    searcher.PropertiesToLoad.Add("name");
+                    searcher.PropertiesToLoad.Add("distinguishedName");
+                    searcher.SearchScope = SearchScope.Subtree;
+                    searcher.PageSize = 1000;
+
+                    var allOus = new List<OuNode>();
+                    using (SearchResultCollection results = searcher.FindAll())
+                    {
+                        foreach (SearchResult result in results)
+                        {
+                            string dn = result.Properties["distinguishedName"].Count > 0 ? result.Properties["distinguishedName"][0].ToString() : string.Empty;
+                            string name = result.Properties["name"].Count > 0 ? result.Properties["name"][0].ToString() : string.Empty;
+                            if (!string.IsNullOrEmpty(dn))
+                            {
+                                allOus.Add(new OuNode { Name = name, DistinguishedName = dn });
+                            }
+                        }
+                    }
+
+                    // Build the tree by tracking depth using the number of commas in the DistinguishedName
+                    var sortedOus = allOus.OrderBy(ou => ou.DistinguishedName.Count(c => c == ',')).ToList();
+                    var ouDict = sortedOus.ToDictionary(ou => ou.DistinguishedName, StringComparer.OrdinalIgnoreCase);
+
+                    foreach (var ou in sortedOus)
+                    {
+                        int firstComma = ou.DistinguishedName.IndexOf(',');
+                        if (firstComma > 0 && firstComma < ou.DistinguishedName.Length - 1)
+                        {
+                            string parentDn = ou.DistinguishedName.Substring(firstComma + 1);
+                            if (ouDict.TryGetValue(parentDn, out OuNode parentNode))
+                            {
+                                parentNode.Children.Add(ou);
+                            }
+                            else
+                            {
+                                // If the parent isn't an OU, this acts as a top-level OU
+                                rootNodes.Add(ou);
+                            }
+                        }
+                        else
+                        {
+                            rootNodes.Add(ou);
+                        }
+                    }
+                }
+                _logger.LogOuOperation("GetOuHierarchy", "Domain", "SUCCESS");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogOuOperation("GetOuHierarchy", "Domain", "ERROR", ex.Message);
+            }
+            
+            return rootNodes;
+        }
+
+        public bool CreateOu(string parentDn, string newOuName)
+        {
+            _logger.LogOuOperation("CreateOu", newOuName, "STARTED", $"Parent: {parentDn}");
+            try
+            {
+                string ldapPath = $"LDAP://{_adConfig.TargetServer}/{parentDn}";
+                using (DirectoryEntry parentEntry = new DirectoryEntry(ldapPath, DomainUser, DomainPass))
+                using (DirectoryEntry newOu = parentEntry.Children.Add($"OU={newOuName}", "organizationalUnit"))
+                {
+                    newOu.CommitChanges();
+                }
+                _logger.LogOuOperation("CreateOu", newOuName, "SUCCESS");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogOuOperation("CreateOu", newOuName, "ERROR", ex.Message);
+                return false;
+            }
+        }
+
+        public bool RenameOu(string targetDn, string newName)
+        {
+            _logger.LogOuOperation("RenameOu", targetDn, "STARTED", $"NewName: {newName}");
+            try
+            {
+                string ldapPath = $"LDAP://{_adConfig.TargetServer}/{targetDn}";
+                using (DirectoryEntry targetEntry = new DirectoryEntry(ldapPath, DomainUser, DomainPass))
+                {
+                    targetEntry.Rename($"OU={newName}");
+                    targetEntry.CommitChanges();
+                }
+                _logger.LogOuOperation("RenameOu", targetDn, "SUCCESS");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogOuOperation("RenameOu", targetDn, "ERROR", ex.Message);
+                return false;
+            }
+        }
+
+        public bool DeleteOu(string targetDn)
+        {
+            _logger.LogOuOperation("DeleteOu", targetDn, "STARTED");
+            try
+            {
+                string ldapPath = $"LDAP://{_adConfig.TargetServer}/{targetDn}";
+                using (DirectoryEntry targetEntry = new DirectoryEntry(ldapPath, DomainUser, DomainPass))
+                {
+                    targetEntry.DeleteTree();
+                    targetEntry.CommitChanges();
+                }
+                _logger.LogOuOperation("DeleteOu", targetDn, "SUCCESS");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogOuOperation("DeleteOu", targetDn, "ERROR", ex.Message);
+                return false;
+            }
+        }
+
+        public bool MoveOu(string sourceOuDn, string destinationParentDn)
+        {
+            _logger.LogOuOperation("MoveOu", sourceOuDn, "STARTED", $"Destination: {destinationParentDn}");
+            try
+            {
+                string sourceLdapPath = $"LDAP://{_adConfig.TargetServer}/{sourceOuDn}";
+                string destLdapPath = $"LDAP://{_adConfig.TargetServer}/{destinationParentDn}";
+
+                using (DirectoryEntry sourceEntry = new DirectoryEntry(sourceLdapPath, DomainUser, DomainPass))
+                using (DirectoryEntry destParentEntry = new DirectoryEntry(destLdapPath, DomainUser, DomainPass))
+                {
+                    // The name of the object being moved is preserved automatically.
+                    sourceEntry.MoveTo(destParentEntry);
+                }
+                _logger.LogOuOperation("MoveOu", sourceOuDn, "SUCCESS");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogOuOperation("MoveOu", sourceOuDn, "ERROR", ex.Message);
+                return false;
+            }
         }
     }
 }

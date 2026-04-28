@@ -1,7 +1,7 @@
 using System;
 using System.Windows.Input;
 
-namespace AdminInfoTools.ViewModels
+namespace AdminInfoTools.Helpers
 {
     public class RelayCommand : ICommand
     {
