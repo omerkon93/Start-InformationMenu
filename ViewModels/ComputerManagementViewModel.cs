@@ -218,6 +218,14 @@ namespace AdminInfoTools.ViewModels
         
         private void ExecuteLoadHosts() { if (new OpenFileDialog { Filter = "Text Files|*.txt" }.ShowDialog() == true) TargetHostnamesText = File.ReadAllText(""); }
         private void ExecuteSaveHosts() { File.WriteAllText($@"C:\Projects\Start-InformationMenu\cs\Logs\ComputerObjectList\Hosts_{DateTime.Now:yyyyMMdd}.txt", TargetHostnamesText); }
-        private void ExecuteLoadFromOu() { TargetHostnamesText = string.Join("\r\n", _adService.GetComputersFromOu(_configService.CurrentSettings.ActiveDirectory.DomainName, SelectedLoadOuValue, _credentialService.Username, _credentialService.Password)); }
+        private void ExecuteLoadFromOu() 
+        { 
+            if (string.IsNullOrWhiteSpace(SelectedLoadOuValue))
+            {
+                MessageBox.Show("Please select or enter an OU to load computers from.", "Missing Input", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            TargetHostnamesText = string.Join("\r\n", _adService.GetComputersFromOu(_configService.CurrentSettings.ActiveDirectory.DomainName, SelectedLoadOuValue, _credentialService.Username, _credentialService.Password)); 
+        }
     }
 }

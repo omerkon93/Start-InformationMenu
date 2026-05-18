@@ -5,7 +5,9 @@
     <sys:String x:Key="StrMainMenu">MAIN MENU</sys:String>
     <sys:String x:Key="StrMenuComputer">💻 Computer Management</sys:String>
     <sys:String x:Key="StrMenuUser">👤 User Management</sys:String>
-    <sys:String x:Key="StrMenuOu">📁 OU Management</sys:String>
+    <sys:String x:Key="StrMenuOu">🏢 OU Management</sys:String>
+    <sys:String x:Key="StrComputerActions">🚀 Computer Actions</sys:String>
+    <sys:String x:Key="StrNtfsMenu">📁 NTFS Permissions</sys:String>
     <sys:String x:Key="StrMenuOptions">🔑 Credentials &amp; Options</sys:String>
 
     <!-- Generic / Shared -->
@@ -80,7 +82,6 @@
     <sys:String x:Key="StrOptLblAppSet">Application Settings</sys:String>
     <sys:String x:Key="StrOptDescAppSet">Load the configuration file for Active Directory mapping and tool paths.</sys:String>
     <sys:String x:Key="StrOptLblConfigPath">Configuration File Path:</sys:String>
-    <sys:String x:Key="StrOptDefConfigPath">C:\Projects\Start-InformationMenu\cs\Settings\settings.jsonc</sys:String>
     <sys:String x:Key="StrOptBtnBrowse">...</sys:String>
     <sys:String x:Key="StrOptBtnLoadConfig">⚙️ Load Configuration</sys:String>
     <sys:String x:Key="StrOptTabEdit">Edit Configuration</sys:String>

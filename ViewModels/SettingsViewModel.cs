@@ -37,8 +37,22 @@ namespace AdminInfoTools.ViewModels
         public Brush CredentialStatusColor { get => _credentialStatusColor; set { _credentialStatusColor = value; OnPropertyChanged(); } }
 
         // --- Settings File Properties ---
-        private string _settingsPath = @"C:\Projects\Start-InformationMenu\cs\Settings\settings.jsonc";
+        private string _settingsPath = GetDefaultSettingsPath();
         public string SettingsPath { get => _settingsPath; set { _settingsPath = value; OnPropertyChanged(); } }
+
+        private static string GetDefaultSettingsPath()
+        {
+            string basePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Settings", "settings.jsonc");
+            
+            // Fallback for Visual Studio debugging (navigates up from bin\Debug\net8.0-windows\)
+            if (!File.Exists(basePath))
+            {
+                string devPath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\Settings\settings.jsonc"));
+                if (File.Exists(devPath)) return devPath;
+            }
+
+            return basePath;
+        }
 
         // --- Config Edit Properties ---
         private string _editDomainName;

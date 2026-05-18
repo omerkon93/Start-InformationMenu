@@ -550,6 +550,12 @@ namespace AdminInfoTools.Services
         {
             var computerNames = new List<string>();
 
+            if (string.IsNullOrWhiteSpace(ouPath))
+            {
+                _logger.LogAdOperation("QueryOU", "EMPTY_OU_PATH", "FAILED", "OU path was empty or null.");
+                return computerNames;
+            }
+
             try
             {
                 // 1. Check if we have explicit credentials (running from off-domain)
