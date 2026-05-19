@@ -20,6 +20,13 @@ namespace AdminInfoTools.ViewModels
         public Action OnCredentialsUpdated { get; set; }
         public Action<string> UpdateStatus { get; set; }
 
+        private bool _useNativeCredentials = true;
+        public bool UseNativeCredentials 
+        { 
+            get => _useNativeCredentials; 
+            set { _useNativeCredentials = value; OnPropertyChanged(); } 
+        }
+
         // --- Credentials Properties ---
         private string _adUsername;
         public string AdUsername { get => _adUsername; set { _adUsername = value; OnPropertyChanged(); } }
@@ -109,6 +116,7 @@ namespace AdminInfoTools.ViewModels
                 AdUsername = creds.Value.Username;
                 AdPassword = creds.Value.Password;
                 SaveCredentialsChecked = true;
+                UseNativeCredentials = false;
 
                 CredentialStatusMessage = "Status: Credentials loaded from disk.";
                 CredentialStatusColor = Brushes.LimeGreen;
@@ -117,6 +125,28 @@ namespace AdminInfoTools.ViewModels
 
         private void ExecuteSaveCredentials(object parameter)
         {
+            if (UseNativeCredentials)
+            {
+                try
+                {
+                    _credentialService.SaveOrClearCredentials("", "", SaveCredentialsChecked);
+                    AdUsername = string.Empty;
+                    AdPassword = string.Empty;
+                    if (parameter is System.Windows.Controls.PasswordBox nativePb) nativePb.Password = string.Empty;
+
+                    CredentialStatusMessage = "Status: Using Native (Implicit) Credentials.";
+                    CredentialStatusColor = Brushes.LimeGreen;
+                    
+                    OnCredentialsUpdated?.Invoke();
+                    MessageBox.Show("Set to use Native Credentials.", "Credentials Updated", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                catch (IOException ex)
+                {
+                    MessageBox.Show($"{ex.Message}: {ex.InnerException?.Message}", "Save Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+                return;
+            }
+
             // Allow passing PasswordBox from view as parameter to avoid strict MVVM PasswordBox binding headaches
             string passwordToSave = AdPassword;
             if (parameter is System.Windows.Controls.PasswordBox pb)

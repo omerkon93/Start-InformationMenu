@@ -25,6 +25,7 @@ namespace AdminInfoTools.Views
         private ComputerManagementViewModel _computerViewModel;
         private OuManagementViewModel _ouViewModel;
         private NtfsManagementViewModel _ntfsViewModel;
+        private ComputerActionsViewModel _computerActionsViewModel;
         private SettingsViewModel _settingsViewModel;
         
 
@@ -52,8 +53,8 @@ namespace AdminInfoTools.Views
                 {
                     if (_adService != null)
                     {
-                        _adService.DomainUser = _credentialService.Username;
-                        _adService.DomainPass = _credentialService.Password;
+                        _adService.DomainUser = _settingsViewModel.UseNativeCredentials ? null : _credentialService.Username;
+                        _adService.DomainPass = _settingsViewModel.UseNativeCredentials ? null : _credentialService.Password;
                     }
                 }
             };
@@ -107,7 +108,7 @@ namespace AdminInfoTools.Views
                 return;
             }
 
-            if (!_credentialService.AreCredentialsSet)
+            if (!_settingsViewModel.UseNativeCredentials && !_credentialService.AreCredentialsSet)
             {
                 MessageBox.Show("Please set your AD Credentials in the Options menu first.", "Credentials Required", MessageBoxButton.OK, MessageBoxImage.Warning);
                 SwitchView(ViewOptions); // Automatically route them to the options page
@@ -117,8 +118,8 @@ namespace AdminInfoTools.Views
             if (_adService == null) _adService = new ActiveDirectoryService(_configService); // This should have been initialized on config load
             
             // Pass the session credentials to the service
-            _adService.DomainUser = _credentialService.Username;
-            _adService.DomainPass = _credentialService.Password;
+            _adService.DomainUser = _settingsViewModel.UseNativeCredentials ? null : _credentialService.Username;
+            _adService.DomainPass = _settingsViewModel.UseNativeCredentials ? null : _credentialService.Password;
             
             SwitchView(ViewComputerManagement);
             StatusText.Text = "Computer Management mode.";
@@ -132,7 +133,7 @@ namespace AdminInfoTools.Views
                 return;
             }
 
-            if (!_credentialService.AreCredentialsSet)
+            if (!_settingsViewModel.UseNativeCredentials && !_credentialService.AreCredentialsSet)
             {
                 MessageBox.Show("Please set your AD Credentials in the Options menu first.", "Credentials Required", MessageBoxButton.OK, MessageBoxImage.Warning);
                 SwitchView(ViewOptions);
@@ -141,8 +142,8 @@ namespace AdminInfoTools.Views
 
             if (_adService == null) _adService = new ActiveDirectoryService(_configService);
             
-            _adService.DomainUser = _credentialService.Username;
-            _adService.DomainPass = _credentialService.Password;
+            _adService.DomainUser = _settingsViewModel.UseNativeCredentials ? null : _credentialService.Username;
+            _adService.DomainPass = _settingsViewModel.UseNativeCredentials ? null : _credentialService.Password;
 
             SwitchView(ViewOuManagement);
             StatusText.Text = "OU Management mode.";
@@ -182,11 +183,8 @@ namespace AdminInfoTools.Views
                 try
                 {
                     _adService = new ActiveDirectoryService(_configService);
-                    if (_credentialService.AreCredentialsSet)
-                    {
-                        _adService.DomainUser = _credentialService.Username;
-                        _adService.DomainPass = _credentialService.Password;
-                    }
+                    _adService.DomainUser = _settingsViewModel.UseNativeCredentials ? null : _credentialService.Username;
+                    _adService.DomainPass = _settingsViewModel.UseNativeCredentials ? null : _credentialService.Password;
 
                     this.DataContext = new UserManagementViewModel(_adService);
                     
@@ -208,6 +206,12 @@ namespace AdminInfoTools.Views
                         UpdateStatus = (msg) => StatusText.Text = msg
                     };
                     ViewNtfsManagement.DataContext = _ntfsViewModel;
+                    
+                    _computerActionsViewModel = new ComputerActionsViewModel(_adService, _configService, _credentialService)
+                    {
+                        UpdateStatus = (msg) => StatusText.Text = msg
+                    };
+                    ViewComputerActions.DataContext = _computerActionsViewModel;
                 }
                 catch (InvalidOperationException ex)
                 {

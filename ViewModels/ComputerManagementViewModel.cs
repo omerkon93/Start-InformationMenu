@@ -98,7 +98,16 @@ namespace AdminInfoTools.ViewModels
         }
 
         private void LogMessage(string msg) => Application.Current.Dispatcher.Invoke(() => Logs.Add($"[{DateTime.Now:HH:mm:ss}] {msg}"));
-        private string[] GetAdHostnames() => TargetHostnamesText?.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries).Select(h => h.Trim().ToUpper()).Where(h => !string.IsNullOrEmpty(h)).ToArray() ?? Array.Empty<string>();
+        
+        private string[] GetAdHostnames() 
+        {
+            var (resolved, unresolved) = HostResolverHelper.ResolveTargetHosts(TargetHostnamesText);
+            foreach (var unres in unresolved)
+            {
+                LogMessage($"Warning: Could not resolve hostname '{unres}'. Proceeding anyway...");
+            }
+            return resolved.Concat(unresolved).ToArray();
+        }
 
         private void ProcessAdAction(string actionName, Func<string, bool> adOperation)
         {
@@ -216,7 +225,15 @@ namespace AdminInfoTools.ViewModels
             } catch (Exception ex) { MessageBox.Show($"Export failed: {ex.Message}"); }
         }
         
-        private void ExecuteLoadHosts() { if (new OpenFileDialog { Filter = "Text Files|*.txt" }.ShowDialog() == true) TargetHostnamesText = File.ReadAllText(""); }
+        private void ExecuteLoadHosts() 
+        { 
+            var dlg = new OpenFileDialog { Filter = "Text Files|*.txt" };
+            if (dlg.ShowDialog() == true) 
+            {
+                TargetHostnamesText = File.ReadAllText(dlg.FileName); 
+            }
+        }
+        
         private void ExecuteSaveHosts() { File.WriteAllText($@"C:\Projects\Start-InformationMenu\cs\Logs\ComputerObjectList\Hosts_{DateTime.Now:yyyyMMdd}.txt", TargetHostnamesText); }
         private void ExecuteLoadFromOu() 
         { 

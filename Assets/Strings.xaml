@@ -74,6 +74,8 @@
     <sys:String x:Key="StrOptTabSession">Session &amp; File</sys:String>
     <sys:String x:Key="StrOptLblSecurity">Security &amp; Credentials</sys:String>
     <sys:String x:Key="StrOptDescSecurity">Enter the Active Directory credentials to be used for operations during this session. You can optionally save them locally.</sys:String>
+    <sys:String x:Key="StrOptUseNative">Use Native Credentials (Active Directory)</sys:String>
+    <sys:String x:Key="StrOptUseExplicit">Use Explicit Credentials</sys:String>
     <sys:String x:Key="StrOptLblDomainUser">Domain\Username:</sys:String>
     <sys:String x:Key="StrOptLblPassword">Password:</sys:String>
     <sys:String x:Key="StrOptChkRemember">Remember Credentials (Saves locally)</sys:String>
