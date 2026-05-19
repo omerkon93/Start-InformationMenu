@@ -65,6 +65,11 @@ namespace AdminInfoTools.Views
             BtnUserMenu.Click += (s, e) => SwitchView(ViewUserManagement);
             BtnOuMenu.Click += BtnOuMenu_Click;
             BtnNtfsMenu.Click += BtnNtfsMenu_Click;
+            BtnComputerActions.Click += (s, e) => 
+            { 
+                SwitchView(ViewComputerActions); 
+                StatusText.Text = "Computer Actions mode."; 
+            };
             
             // Options Menu Events
             BtnOptionsMenu.Click += (s, e) => SwitchView(ViewOptions);
@@ -89,6 +94,7 @@ namespace AdminInfoTools.Views
             if (ViewUserManagement != null) ViewUserManagement.Visibility = Visibility.Collapsed;
             if (ViewOuManagement != null) ViewOuManagement.Visibility = Visibility.Collapsed;
             if (ViewNtfsManagement != null) ViewNtfsManagement.Visibility = Visibility.Collapsed;
+            if (ViewComputerActions != null) ViewComputerActions.Visibility = Visibility.Collapsed;
             
             activeView.Visibility = Visibility.Visible;
         }

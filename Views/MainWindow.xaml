@@ -348,6 +348,57 @@
                 </GroupBox>
             </Grid>
 
+            <Grid x:Name="ViewComputerActions" Visibility="Collapsed">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="280"/> 
+                    <ColumnDefinition Width="*"/>   
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Margin="0,0,20,0">
+                    
+                    <Grid Margin="0,0,0,5">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        
+                        <TextBlock Text="{StaticResource StrCompTargetHostnames}" FontWeight="Bold" VerticalAlignment="Center"/>
+                        
+                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,5,0,0">
+                            <ComboBox x:Name="CmbActionsLoadOu" MinWidth="120" Margin="0,0,5,0" DisplayMemberPath="Key" SelectedValuePath="Value" ToolTip="{StaticResource StrCompLoadOuToolTip}"/>
+                            <Button x:Name="BtnActionsLoadFromOu" Content="{StaticResource StrCompBtnGet}" Margin="0,0,5,0" Padding="15,2" Cursor="Hand"/>
+                            <Button x:Name="BtnActionsLoadHosts" Content="{StaticResource StrBtnIconLoad}" Margin="0,0,5,0" Padding="5,2" Cursor="Hand" ToolTip="{StaticResource StrToolTipLoadTxt}"/>
+                            <Button x:Name="BtnActionsSaveHosts" Content="{StaticResource StrBtnIconSave}" Margin="0,0,0,0" Padding="5,2" Cursor="Hand" ToolTip="{StaticResource StrToolTipSaveTxt}"/>
+                        </StackPanel>
+                    </Grid>
+                    
+                    <TextBox x:Name="TxtActionsHostnames" Height="90" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Margin="0,0,0,10"/>
+
+                    <Expander Header="Remote Actions" FontWeight="Bold" IsExpanded="True" Margin="0,0,0,5">
+                        <StackPanel Margin="0,5,0,0" TextElement.FontWeight="Normal">
+                            <Button x:Name="BtnActionPsExecTerminal" Content="1. Start PsExec Terminal" Height="25" Margin="0,0,0,5" Background="#007ACC" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                            <Button x:Name="BtnActionPsExecCommand" Content="2. Send PsExec Command" Height="25" Margin="0,0,0,5" Background="#17A2B8" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                            <Button x:Name="BtnActionPsTerminal" Content="3. Start PowerShell Terminal" Height="25" Margin="0,0,0,5" Background="#28A745" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                            <Button x:Name="BtnActionPsCommand" Content="4. Send PowerShell Command" Height="25" Margin="0,0,0,5" Background="#6F42C1" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                            <Button x:Name="BtnActionInvokeScript" Content="5. Invoke Script" Height="25" Margin="0,0,0,10" Background="#6C757D" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                        </StackPanel>
+                    </Expander>
+                </StackPanel>
+
+                <Grid Grid.Column="1">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="120"/>
+                    </Grid.RowDefinitions>
+                    
+                    <TextBox x:Name="TxtActionsOutput" Grid.Row="0" IsReadOnly="True" Background="#1E1E1E" Foreground="LightGray" FontFamily="Consolas" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Margin="0,0,0,10"/>
+                    
+                    <GroupBox Grid.Row="1" Header="Execution Log">
+                        <ListBox x:Name="ListActionsLogs" Background="#1E1E1E" Foreground="#00FF00" FontFamily="Consolas" Margin="5"/>
+                    </GroupBox>
+                </Grid>
+            </Grid>
+
             <Grid x:Name="ViewOptions" Visibility="Collapsed">
                 <TabControl Margin="5" Background="Transparent" BorderThickness="0">
                     
