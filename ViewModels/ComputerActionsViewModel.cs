@@ -146,6 +146,10 @@ namespace AdminInfoTools.ViewModels
             {
                 LogMessage($"Starting interactive terminal for {pc}...");
                 bool useNative = string.IsNullOrWhiteSpace(_credentialService.Username);
+                
+                string maskedArgs = $"\\\\{pc} -accepteula -h" + (!useNative ? $" -u \"{formattedUser}\" -p \"********\"" : "") + (usePowerShell ? " powershell.exe" : " cmd.exe");
+                LogMessage($"Command: psexec {maskedArgs}");
+
                 string args = $"\\\\{pc} -accepteula -h" + (!useNative ? $" -u \"{formattedUser}\" -p \"{_credentialService.Password}\"" : "") + (usePowerShell ? " powershell.exe" : " cmd.exe");
                 string cmdArgs = $"/k \"\"{psExecPath}\" {args}\"";
                 try { Process.Start(new ProcessStartInfo { FileName = "cmd.exe", Arguments = cmdArgs, UseShellExecute = true, CreateNoWindow = false }); }
