@@ -283,14 +283,27 @@ namespace AdminInfoTools.ViewModels
         {
             var hosts = await GetResolvedHostnamesAsync();
             if (hosts.Length == 0) return;
-            var dlg = new OpenFileDialog { Filter = "Scripts (*.bat;*.ps1)|*.bat;*.ps1" };
+            
+            // 1. UI: Select the Entry Point Script. Its parent folder becomes the Deployment Container.
+            var dlg = new OpenFileDialog { Title = "Select Entry Point Script (Parent folder will be deployed)", Filter = "Scripts (*.bat;*.ps1)|*.bat;*.ps1" };
             if (dlg.ShowDialog() != true)
             {
                 LogMessage("Script invocation cancelled by user.");
                 return;
             }
             
-            string scriptName = Path.GetFileName(dlg.FileName);
+            string entryPointPath = dlg.FileName;
+            string entryPointScript = Path.GetFileName(entryPointPath);
+            string localFolderPath = Path.GetDirectoryName(entryPointPath);
+
+            // 2. UI: Choose Context
+            var runAsResult = MessageBox.Show(
+                $"Deploy '{entryPointScript}' to {hosts.Length} host(s) as SYSTEM?\n\nYes = SYSTEM\nNo = Admin (Current User)", 
+                "Execution Context", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+            
+            if (runAsResult == MessageBoxResult.Cancel) return;
+            string runAsContext = runAsResult == MessageBoxResult.Yes ? "System" : "Admin";
+
             string formattedUser = GetFormattedUsername();
             bool useNative = string.IsNullOrWhiteSpace(_credentialService.Username);
             
@@ -304,10 +317,148 @@ namespace AdminInfoTools.ViewModels
             
             foreach (var pc in hosts) 
             { 
-                LogMessage($"Routing script '{scriptName}' to {pc}...");
-                string targetCmd = $"{credBlock}Invoke-Command -ComputerName {pc} {(useNative ? "" : "-Credential $cred ")} -FilePath \"{dlg.FileName}\"";
-                AppendOutput($"--- Routing Script to {pc} ---");
-                SendCommandToTerminal(targetCmd);
+                LogMessage($"Deploying container to {pc} (RunAs: {runAsContext})...");
+                AppendOutput($"--- Deploying Container to {pc} ---");
+
+                string deployGuid = Guid.NewGuid().ToString("N");
+                string remoteTempPath = $@"C:\Windows\Temp\Deploy_{deployGuid}";
+                string remoteUncPath = $@"\\{pc}\c$\Windows\Temp\Deploy_{deployGuid}";
+                string entryPointRemotePath = $@"{remoteTempPath}\{entryPointScript}";
+                string localTempScriptPath = Path.Combine(Path.GetTempPath(), $"Deploy_{deployGuid}.ps1");
+
+                // 3. The Deployment Phases (C# to PowerShell generation)
+                string psScript = $$"""
+                {{credBlock}}
+                $ErrorActionPreference = 'Stop'
+                $pc = '{{pc}}'
+                $localFolder = '{{localFolderPath}}'
+                $remoteUncPath = '{{remoteUncPath}}'
+                $remoteTempPath = '{{remoteTempPath}}'
+                $entryPointPath = '{{entryPointRemotePath}}'
+                $runAs = '{{runAsContext}}'
+                $useNative = ${{useNative.ToString().ToLower()}}
+
+                try {
+                    Write-Host "Phase 1: Staging files to $remoteUncPath..."
+                    if (-not $useNative) {
+                        New-PSDrive -Name "DeployDrive_{{deployGuid}}" -PSProvider FileSystem -Root "\\$pc\c$" -Credential $cred | Out-Null
+                        $mappedUnc = "DeployDrive_{{deployGuid}}:\Windows\Temp\Deploy_{{deployGuid}}"
+                        if (-not (Test-Path $mappedUnc)) { New-Item -ItemType Directory -Path $mappedUnc | Out-Null }
+                        Copy-Item -Path "$localFolder\*" -Destination $mappedUnc -Recurse -Force
+                    } else {
+                        if (-not (Test-Path $remoteUncPath)) { New-Item -ItemType Directory -Path $remoteUncPath | Out-Null }
+                        Copy-Item -Path "$localFolder\*" -Destination $remoteUncPath -Recurse -Force
+                    }
+
+                    Write-Host "Phase 2: Executing ($runAs context)..."
+                    if ($runAs -eq 'Admin') {
+                        $invokeCmd = {
+                            param($scriptPath)
+                            & $scriptPath
+                        }
+                        if ($useNative) {
+                            Invoke-Command -ComputerName $pc -ScriptBlock $invokeCmd -ArgumentList $entryPointPath
+                        } else {
+                            Invoke-Command -ComputerName $pc -Credential $cred -ScriptBlock $invokeCmd -ArgumentList $entryPointPath
+                        }
+                    }
+                    elseif ($runAs -eq 'System') {
+                        $sysScriptBlock = {
+                            param($scriptPath)
+                            $taskName = "DeployTask_$(New-Guid)";
+                            $containerPath = Split-Path -Path $scriptPath -Parent;
+                            $logPath = Join-Path -Path $containerPath -ChildPath '_deployment.log';
+                            $runnerPath = Join-Path -Path $containerPath -ChildPath '_runner.bat';
+
+                            # Create a batch file to execute the PowerShell script and capture all of its output
+                            $runnerContent = "@echo off`r`npowershell.exe -ExecutionPolicy Bypass -NoProfile -File `"$scriptPath`" > `"$logPath`" 2>&1";
+                            Set-Content -Path $runnerPath -Value $runnerContent;
+
+                            $action = New-ScheduledTaskAction -Execute $runnerPath;
+                            $principal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" -LogonType ServiceAccount -RunLevel Highest;
+                            $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable;
+                            
+                            Register-ScheduledTask -TaskName $taskName -Action $action -Principal $principal -Settings $settings | Out-Null;
+                            Start-ScheduledTask -TaskName $taskName;
+                            
+                            # Wait for task to complete, with a timeout
+                            $timeout = New-TimeSpan -Minutes 30;
+                            $sw = [System.Diagnostics.Stopwatch]::StartNew();
+                            Write-Host "Waiting for SYSTEM task to complete (timeout: $($timeout.TotalMinutes) minutes)...";
+                            
+                            while ($sw.Elapsed -lt $timeout) {
+                                $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue;
+                                if ($null -eq $task -or $task.State -ne 'Running') {
+                                    break;
+                                }
+                                Start-Sleep -Seconds 5;
+                            }
+                            
+                            if ($sw.Elapsed -ge $timeout) {
+                                Write-Warning "Task timed out after $($timeout.TotalMinutes) minutes.";
+                                try { Stop-ScheduledTask -TaskName $taskName -Confirm:$false } catch {};
+                            }
+                            
+                            Start-Sleep -Seconds 2; # Allow time for log file to be written
+
+                            $taskResult = Get-ScheduledTaskInfo -TaskName $taskName;
+                            Write-Host "Task finished. Last result code: $($taskResult.LastTaskResult)";
+
+                            if (Test-Path $logPath) {
+                                Write-Host "--- Remote Execution Log from '$logPath' ---";
+                                Get-Content $logPath -ErrorAction SilentlyContinue;
+                                Write-Host "--- End Remote Log ---";
+                            } else {
+                                Write-Warning "Execution log file not found.";
+                            }
+                            
+                            Unregister-ScheduledTask -TaskName $taskName -Confirm:$false;
+                        }
+                        
+                        if ($useNative) {
+                            Invoke-Command -ComputerName $pc -ScriptBlock $sysScriptBlock -ArgumentList $entryPointPath
+                        } else {
+                            Invoke-Command -ComputerName $pc -Credential $cred -ScriptBlock $sysScriptBlock -ArgumentList $entryPointPath
+                        }
+                    }
+                }
+                catch {
+                    Write-Error "Deployment failed on $pc : $_"
+                }
+                finally {
+                    Write-Host "Phase 3: Cleanup..."
+                    Start-Sleep -Seconds 2
+                    $retry = 0
+                    $cleaned = $false
+                    while ($retry -lt 3 -and -not $cleaned) {
+                        try {
+                            if (-not $useNative) {
+                                $mappedUnc = "DeployDrive_{{deployGuid}}:\Windows\Temp\Deploy_{{deployGuid}}"
+                                if (Test-Path $mappedUnc) { Remove-Item -Path $mappedUnc -Recurse -Force -ErrorAction Stop }
+                                Remove-PSDrive -Name "DeployDrive_{{deployGuid}}" -ErrorAction SilentlyContinue
+                            } else {
+                                if (Test-Path $remoteUncPath) { Remove-Item -Path $remoteUncPath -Recurse -Force -ErrorAction Stop }
+                            }
+                            $cleaned = $true
+                        } catch {
+                            $retry++
+                            Start-Sleep -Seconds 3
+                        }
+                    }
+                    if (-not $cleaned) {
+                        Write-Warning "Failed to cleanup $remoteUncPath after multiple attempts. A file may still be in use."
+                    }
+                    
+                    try {
+                        $localTemp = '{{localTempScriptPath}}'
+                        if (Test-Path $localTemp) { Remove-Item -Path $localTemp -Force -ErrorAction SilentlyContinue }
+                    } catch {}
+                }
+                """;
+
+                // 4. Save to a temporary script file to bypass the 8192-character stdin limit
+                File.WriteAllText(localTempScriptPath, psScript);
+                SendCommandToTerminal($"powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"{localTempScriptPath}\"");
             }
         }
 
