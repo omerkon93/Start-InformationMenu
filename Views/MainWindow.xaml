@@ -391,7 +391,25 @@
                         <RowDefinition Height="120"/>
                     </Grid.RowDefinitions>
                     
-                    <TextBox x:Name="TxtActionsOutput" Text="{Binding OutputText}" Grid.Row="0" IsReadOnly="True" Background="#1E1E1E" Foreground="LightGray" FontFamily="Consolas" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Margin="0,0,0,10"/>
+                    <Border Grid.Row="0" Background="#1E1E1E" Margin="0,0,0,10" CornerRadius="2">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            
+                            <TextBox x:Name="TxtActionsOutput" Text="{Binding OutputText, Mode=OneWay}" Grid.Row="0" IsReadOnly="True" Background="Transparent" Foreground="LightGray" FontFamily="Consolas" TextWrapping="Wrap" BorderThickness="0" VerticalScrollBarVisibility="Auto" ScrollViewer.CanContentScroll="True" TextChanged="TxtActionsOutput_TextChanged"/>
+                            
+                            <Grid Grid.Row="1" Margin="0,5,0,5">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="&gt;" Foreground="#00FF00" FontFamily="Consolas" Margin="5,0,5,0" VerticalAlignment="Center"/>
+                                <TextBox x:Name="TxtTerminalInput" Grid.Column="1" Background="Transparent" Foreground="White" FontFamily="Consolas" BorderThickness="0" CaretBrush="White" KeyDown="TxtTerminalInput_KeyDown" VerticalContentAlignment="Center"/>
+                            </Grid>
+                        </Grid>
+                    </Border>
                     
                     <GroupBox Grid.Row="1" Header="Execution Log">
                         <ListBox x:Name="ListActionsLogs" ItemsSource="{Binding Logs}" Background="#1E1E1E" Foreground="#00FF00" FontFamily="Consolas" Margin="5"/>

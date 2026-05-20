@@ -9,12 +9,16 @@ namespace AdminInfoTools.Services
         private readonly string _logFilePath;
         private readonly string _ouLogDirectory;
         private readonly string _ouLogFilePath;
+        private readonly string _actionLogDirectory;
+        private readonly string _actionLogFilePath;
         private static readonly object _lockObj = new object();
 
         public LogService()
         {
-            _logDirectory = @"C:\Projects\Start-InformationMenu\cs\Logs\ActiveDirectoryOperations";
-            _ouLogDirectory = @"C:\Projects\Start-InformationMenu\cs\Logs\OrganizationalUnitOperations";
+            string logPath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\Logs"));
+            _logDirectory = Path.Combine(logPath, "ActiveDirectoryOperations");
+            _ouLogDirectory = Path.Combine(logPath, "OrganizationalUnitOperations");
+            _actionLogDirectory = Path.Combine(logPath, "ComputerActions");
 
             if (!Directory.Exists(_logDirectory))
             {
@@ -25,10 +29,16 @@ namespace AdminInfoTools.Services
             {
                 Directory.CreateDirectory(_ouLogDirectory);
             }
+            
+            if (!Directory.Exists(_actionLogDirectory))
+            {
+                Directory.CreateDirectory(_actionLogDirectory);
+            }
 
             // Creates a daily rollover log file (e.g., ActiveDirectoryOperations_20260426.log)
             _logFilePath = Path.Combine(_logDirectory, $"ActiveDirectoryOperations_{DateTime.Now:yyyyMMdd_HHmmss}.log");
             _ouLogFilePath = Path.Combine(_ouLogDirectory, $"OrganizationalUnitOperations_{DateTime.Now:yyyyMMdd_HHmmss}.log");
+            _actionLogFilePath = Path.Combine(_actionLogDirectory, $"ComputerActions_{DateTime.Now:yyyyMMdd_HHmmss}.log");
         }
 
         /// <summary>
@@ -77,6 +87,25 @@ namespace AdminInfoTools.Services
                     
                     File.AppendAllText(_logFilePath, logMessage + Environment.NewLine);
                     File.AppendAllText(_ouLogFilePath, logMessage + Environment.NewLine);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Logging failed: {ex.Message}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Logs a general computer action message to the ComputerActions log folder.
+        /// </summary>
+        public void LogComputerAction(string message)
+        {
+            lock (_lockObj)
+            {
+                try
+                {
+                    string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                    File.AppendAllText(_actionLogFilePath, $"[{timestamp}] | {message}{Environment.NewLine}");
                 }
                 catch (Exception ex)
                 {

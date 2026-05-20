@@ -13,7 +13,7 @@ using AdminInfoTools.Services;
 
 namespace AdminInfoTools.ViewModels
 {
-    public class ComputerActionsViewModel : ViewModelBase
+    public class ComputerActionsViewModel : ViewModelBase, IDisposable
     {
         private readonly ActiveDirectoryService _adService;
         private readonly ConfigurationService _configService;
@@ -56,6 +56,9 @@ namespace AdminInfoTools.ViewModels
         public ICommand PsCommandCommand { get; }
         public ICommand InvokeScriptCommand { get; }
 
+        private Process _terminalProcess;
+        private StreamWriter _terminalInput;
+
         public ComputerActionsViewModel(ActiveDirectoryService adService, ConfigurationService configService, CredentialService credentialService)
         {
             _adService = adService;
@@ -67,17 +70,57 @@ namespace AdminInfoTools.ViewModels
             LoadHostsCommand = new RelayCommand(_ => ExecuteLoadHosts());
             SaveHostsCommand = new RelayCommand(_ => ExecuteSaveHosts());
             
-            PsExecTerminalCommand = new RelayCommand(async _ => await ExecuteInteractiveTerminal(false));
-            PsTerminalCommand = new RelayCommand(async _ => await ExecuteInteractiveTerminal(true));
+            PsExecTerminalCommand = new RelayCommand(async _ => await ExecuteTerminalSession(false));
+            PsTerminalCommand = new RelayCommand(async _ => await ExecuteTerminalSession(true));
             
-            PsExecCommandCommand = new RelayCommand(async _ => await ExecuteRemoteCommand(false));
-            PsCommandCommand = new RelayCommand(async _ => await ExecuteRemoteCommand(true));
+            PsExecCommandCommand = new RelayCommand(async _ => await ExecuteRoutedRemoteCommand(false));
+            PsCommandCommand = new RelayCommand(async _ => await ExecuteRoutedRemoteCommand(true));
             
             InvokeScriptCommand = new RelayCommand(async _ => await ExecuteInvokeScript());
         }
 
-        private void LogMessage(string msg) => Application.Current.Dispatcher.Invoke(() => Logs.Add($"[{DateTime.Now:HH:mm:ss}] {msg}"));
+        private void LogMessage(string msg)
+        {
+            Application.Current.Dispatcher.Invoke(() => Logs.Add($"[{DateTime.Now:HH:mm:ss}] {msg}"));
+            _logger.LogComputerAction(msg);
+        }
         private void AppendOutput(string msg) => Application.Current.Dispatcher.Invoke(() => OutputText += msg + Environment.NewLine);
+
+        public void StartTerminalSession(bool usePowerShell = true)
+        {
+            if (_terminalProcess != null && !_terminalProcess.HasExited)
+                return;
+
+            _terminalProcess = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = usePowerShell ? "powershell.exe" : "cmd.exe",
+                    Arguments = usePowerShell ? "-NoExit -NoProfile" : "",
+                    RedirectStandardInput = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            _terminalProcess.OutputDataReceived += (s, e) => { if (e.Data != null) AppendOutput(e.Data); };
+            _terminalProcess.ErrorDataReceived += (s, e) => { if (e.Data != null) AppendOutput(e.Data); };
+
+            _terminalProcess.Start();
+            _terminalInput = _terminalProcess.StandardInput;
+            _terminalProcess.BeginOutputReadLine();
+            _terminalProcess.BeginErrorReadLine();
+            
+            LogMessage($"Started background {(usePowerShell ? "PowerShell" : "Command Prompt")} session.");
+        }
+
+        public void SendCommandToTerminal(string command)
+        {
+            if (_terminalProcess == null || _terminalProcess.HasExited) StartTerminalSession(true);
+            _terminalInput.WriteLine(command);
+        }
 
         private async Task<string[]> GetResolvedHostnamesAsync()
         {
@@ -129,10 +172,11 @@ namespace AdminInfoTools.ViewModels
             TargetHostnamesText = string.Join("\r\n", _adService.GetComputersFromOu(_configService.CurrentSettings.ActiveDirectory.DomainName, SelectedLoadOuValue, _credentialService.Username, _credentialService.Password));
         }
 
-        private async Task ExecuteInteractiveTerminal(bool usePowerShell)
+        private async Task ExecuteTerminalSession(bool usePowerShell)
         {
             var hosts = await GetResolvedHostnamesAsync();
             if (hosts.Length == 0) return;
+
             string psExecPath = _configService.CurrentSettings?.ExternalTools?.PsExecPath ?? "psexec.exe";
             
             // Fallback to system PATH if the config path doesn't exist
@@ -144,36 +188,95 @@ namespace AdminInfoTools.ViewModels
             string formattedUser = GetFormattedUsername();
             foreach (var pc in hosts)
             {
-                LogMessage($"Starting interactive terminal for {pc}...");
+                LogMessage($"Starting interactive terminal for {pc} in a new window...");
                 bool useNative = string.IsNullOrWhiteSpace(_credentialService.Username);
                 
-                string maskedArgs = $"\\\\{pc} -accepteula -h" + (!useNative ? $" -u \"{formattedUser}\" -p \"********\"" : "") + (usePowerShell ? " powershell.exe" : " cmd.exe");
-                LogMessage($"Command: psexec {maskedArgs}");
-
                 string args = $"\\\\{pc} -accepteula -h" + (!useNative ? $" -u \"{formattedUser}\" -p \"{_credentialService.Password}\"" : "") + (usePowerShell ? " powershell.exe" : " cmd.exe");
                 string cmdArgs = $"/k \"\"{psExecPath}\" {args}\"";
-                try { Process.Start(new ProcessStartInfo { FileName = "cmd.exe", Arguments = cmdArgs, UseShellExecute = true, CreateNoWindow = false }); }
-                catch (Exception ex) { LogMessage($"Failed to start terminal for {pc}: {ex.Message}"); }
+                
+                try 
+                { 
+                    Process.Start(new ProcessStartInfo { FileName = "cmd.exe", Arguments = cmdArgs, UseShellExecute = true, CreateNoWindow = false }); 
+                }
+                catch (Exception ex) 
+                { 
+                    LogMessage($"Failed to start terminal for {pc}: {ex.Message}"); 
+                }
             }
         }
 
-        private async Task ExecuteRemoteCommand(bool usePowerShell)
+        private async Task ExecuteRoutedRemoteCommand(bool usePowerShell)
         {
             var hosts = await GetResolvedHostnamesAsync();
             if (hosts.Length == 0) return;
             string command = DialogHelper.ShowInputDialog($"Enter {(usePowerShell ? "PowerShell" : "Command Prompt")} command to execute:", "Remote Command");
-            if (string.IsNullOrWhiteSpace(command)) return;
+            if (string.IsNullOrWhiteSpace(command))
+            {
+                LogMessage("Remote command cancelled by user.");
+                return;
+            }
             bool useNative = string.IsNullOrWhiteSpace(_credentialService.Username);
             string formattedUser = GetFormattedUsername();
-            var svc = new RemoteExecutionService(_logger, _configService.CurrentSettings?.ExternalTools?.PsExecPath ?? "psexec.exe", useNative ? null : formattedUser, useNative ? null : _credentialService.Password);
-            OutputText = ""; 
+            string psExecPath = _configService.CurrentSettings?.ExternalTools?.PsExecPath ?? "psexec.exe";
+            
+            string credBlock = "";
+            if (!useNative && usePowerShell)
+            {
+                credBlock = $"$pw = ConvertTo-SecureString '{_credentialService.Password}' -AsPlainText -Force; $cred = New-Object System.Management.Automation.PSCredential ('{formattedUser}', $pw); ";
+            }
+
             foreach (var pc in hosts)
             {
-                LogMessage($"Executing command on {pc}..."); AppendOutput($"--- Execution on {pc} ---"); UpdateStatus?.Invoke($"Running command on {pc}...");
-                string result = await svc.RunRemoteCommandAsync(pc, command, usePowerShell);
-                AppendOutput(result); LogMessage($"Command on {pc}: {(result.StartsWith("ERROR") ? "FAILED" : "SUCCESS")}");
+                AppendOutput($"--- Routing Command to {pc} ---");
+                LogMessage($"Routing {(usePowerShell ? "PS" : "CMD")} command to {pc}...");
+
+                if (usePowerShell)
+                {
+                    // PowerShell's Invoke-Command is stream-friendly and can be routed to the interactive terminal.
+                    StartTerminalSession(true);
+                    string targetCmd = $"{credBlock}Invoke-Command -ComputerName {pc} {(useNative ? "" : "-Credential $cred ")} -ScriptBlock {{ {command} }}";
+                    SendCommandToTerminal(targetCmd);
+                }
+                else
+                {
+                    // PsExec is not stream-friendly. Run it in a dedicated process to capture all output reliably.
+                    string args = $"\\\\{pc} -accepteula -h";
+                    if (!useNative)
+                    {
+                        args += $" -u \"{formattedUser}\" -p \"{_credentialService.Password}\"";
+                    }
+                    args += $" cmd /c \"{command}\"";
+
+                    string result = await RunProcessAndGetOutputAsync(psExecPath, args);
+                    AppendOutput(result);
+                    LogMessage($"PsExec command on {pc} completed.");
+                }
             }
-            UpdateStatus?.Invoke("Command execution completed.");
+        }
+
+        private async Task<string> RunProcessAndGetOutputAsync(string fileName, string arguments)
+        {
+            try
+            {
+                using var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = fileName, Arguments = arguments, UseShellExecute = false,
+                        RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true
+                    }
+                };
+                process.Start();
+                string output = await process.StandardOutput.ReadToEndAsync();
+                string error = await process.StandardError.ReadToEndAsync();
+                await process.WaitForExitAsync();
+                return string.IsNullOrWhiteSpace(output) ? error : output;
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"ERROR running '{Path.GetFileName(fileName)}': {ex.Message}");
+                return $"EXCEPTION: Failed to run '{Path.GetFileName(fileName)}'. {ex.Message}";
+            }
         }
 
         private async Task ExecuteInvokeScript()
@@ -181,12 +284,44 @@ namespace AdminInfoTools.ViewModels
             var hosts = await GetResolvedHostnamesAsync();
             if (hosts.Length == 0) return;
             var dlg = new OpenFileDialog { Filter = "Scripts (*.bat;*.ps1)|*.bat;*.ps1" };
-            if (dlg.ShowDialog() != true) return;
+            if (dlg.ShowDialog() != true)
+            {
+                LogMessage("Script invocation cancelled by user.");
+                return;
+            }
+            
+            string scriptName = Path.GetFileName(dlg.FileName);
             string formattedUser = GetFormattedUsername();
-            var svc = new RemoteExecutionService(_logger, _configService.CurrentSettings?.ExternalTools?.PsExecPath ?? "psexec.exe", formattedUser, _credentialService.Password);
-            OutputText = "";
-            foreach (var pc in hosts) { LogMessage($"Invoking script on {pc}..."); AppendOutput($"--- Script Execution on {pc} ---"); UpdateStatus?.Invoke($"Running script on {pc}..."); string result = await svc.RunRemoteScriptAsync(pc, dlg.FileName); AppendOutput(result); LogMessage($"Script on {pc}: {(result.StartsWith("ERROR") ? "FAILED" : "SUCCESS")}"); }
-            UpdateStatus?.Invoke("Script execution completed.");
+            bool useNative = string.IsNullOrWhiteSpace(_credentialService.Username);
+            
+            StartTerminalSession(true); // PowerShell is required for secure script routing
+            
+            string credBlock = "";
+            if (!useNative)
+            {
+                credBlock = $"$pw = ConvertTo-SecureString '{_credentialService.Password}' -AsPlainText -Force; $cred = New-Object System.Management.Automation.PSCredential ('{formattedUser}', $pw); ";
+            }
+            
+            foreach (var pc in hosts) 
+            { 
+                LogMessage($"Routing script '{scriptName}' to {pc}...");
+                string targetCmd = $"{credBlock}Invoke-Command -ComputerName {pc} {(useNative ? "" : "-Credential $cred ")} -FilePath \"{dlg.FileName}\"";
+                AppendOutput($"--- Routing Script to {pc} ---");
+                SendCommandToTerminal(targetCmd);
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_terminalProcess != null && !_terminalProcess.HasExited)
+            {
+                try
+                {
+                    _terminalProcess.Kill();
+                    _terminalProcess.Dispose();
+                }
+                catch { }
+            }
         }
     }
 }

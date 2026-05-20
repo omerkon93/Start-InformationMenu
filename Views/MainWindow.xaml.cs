@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿﻿﻿﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -245,6 +245,32 @@ namespace AdminInfoTools.Views
                     if (expander != null && expander != expandedExpander) expander.IsExpanded = false;
                 }
             }
+        }
+
+        // --- TERMINAL INTERACTION ---
+        private void TxtTerminalInput_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key == System.Windows.Input.Key.Enter)
+            {
+                string command = TxtTerminalInput.Text;
+                TxtTerminalInput.Clear();
+                
+                if (_computerActionsViewModel != null)
+                {
+                    _computerActionsViewModel.SendCommandToTerminal(command);
+                }
+            }
+        }
+
+        private void TxtActionsOutput_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            TxtActionsOutput.ScrollToEnd();
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            base.OnClosed(e);
+            _computerActionsViewModel?.Dispose();
         }
     }
 }
