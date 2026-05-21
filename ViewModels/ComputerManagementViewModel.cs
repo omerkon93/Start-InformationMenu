@@ -218,7 +218,7 @@ namespace AdminInfoTools.ViewModels
         {
             try
             {
-                string path = _logger.GetNewFilePath(LogCategory.ComputerObjectQuery, "Query", ".csv");
+                string path = _logger.GetNewFilePath(LogCategory.ActiveDirectoryObjectQuery, "ComputerQuery", ".csv");
                 if (CurrentResults is IEnumerable<ComputerInfoResult> w) CsvExportService.Export(w, path);
                 else if (CurrentResults is IEnumerable<AdComputerInfoResult> a) CsvExportService.Export(a, path);
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = path, UseShellExecute = true });

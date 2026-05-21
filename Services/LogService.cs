@@ -7,11 +7,14 @@ namespace AdminInfoTools.Services
     public enum LogCategory
     {
         ActiveDirectoryOperations,
-        OrganizationalUnitOperations,
-        ComputerActions,
+        ActiveDirectoryObjectQuery,
         ComputerObjectGenerated,
         ComputerObjectList,
-        ComputerObjectQuery
+        ComputerObjectModified,
+        UserObjectModified,
+        OrganizationalUnitOperations,
+        RemoteComputerActions,
+        RemoteComputerActionsDetailed
     }
 
     public class LogService
@@ -84,17 +87,84 @@ namespace AdminInfoTools.Services
         }
 
         /// <summary>
-        /// Logs a general computer action message to the ComputerActions log folder.
+        /// Logs a structured User Object Modification operation to both the general AD log and the specific User log.
+        /// </summary>
+        public void LogUserModified(string operation, string target, string status, string details = "")
+        {
+            string adFilePath = GetSessionLogFilePath(LogCategory.ActiveDirectoryOperations);
+            string userFilePath = GetSessionLogFilePath(LogCategory.UserObjectModified);
+            
+            string logMessage = BuildLogMessage(operation, target, status, details);
+            
+            lock (_lockObj)
+            {
+                try
+                {
+                    File.AppendAllText(adFilePath, logMessage);
+                    File.AppendAllText(userFilePath, logMessage);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Logging failed: {ex.Message}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Logs a structured Computer Object Modification operation to both the general AD log and the specific Computer log.
+        /// </summary>
+        public void LogComputerModified(string operation, string target, string status, string details = "")
+        {
+            string adFilePath = GetSessionLogFilePath(LogCategory.ActiveDirectoryOperations);
+            string compFilePath = GetSessionLogFilePath(LogCategory.ComputerObjectModified);
+            
+            string logMessage = BuildLogMessage(operation, target, status, details);
+            
+            lock (_lockObj)
+            {
+                try
+                {
+                    File.AppendAllText(adFilePath, logMessage);
+                    File.AppendAllText(compFilePath, logMessage);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Logging failed: {ex.Message}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Logs a general computer action message to the RemoteComputerActions log folder.
         /// </summary>
         public void LogComputerAction(string message)
         {
-            string filePath = GetSessionLogFilePath(LogCategory.ComputerActions);
+            string filePath = GetSessionLogFilePath(LogCategory.RemoteComputerActions);
             lock (_lockObj)
             {
                 try
                 {
                     string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
                     File.AppendAllText(filePath, $"[{timestamp}] | {message}{Environment.NewLine}");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Logging failed: {ex.Message}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Logs detailed terminal output for remote computer actions.
+        /// </summary>
+        public void LogComputerActionDetailed(string message)
+        {
+            string filePath = GetSessionLogFilePath(LogCategory.RemoteComputerActionsDetailed);
+            lock (_lockObj)
+            {
+                try
+                {
+                    File.AppendAllText(filePath, $"{message}{Environment.NewLine}");
                 }
                 catch (Exception ex)
                 {

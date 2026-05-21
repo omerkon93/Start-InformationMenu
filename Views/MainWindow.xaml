@@ -209,11 +209,7 @@
 
                     <Expander x:Name="ExpUserOrg" Header="{StaticResource StrUserExpOrg}" FontWeight="Bold" Expanded="UserAccordion_Expanded" Margin="0,0,0,5">
                         <StackPanel Margin="0,5,0,0" TextElement.FontWeight="Normal">
-                            <TextBlock Text="{StaticResource StrUserLblDept}" Margin="0,0,0,2"/>
-                            <TextBox x:Name="TxtUserDept" Height="25" Margin="0,0,0,5" Padding="2"/>
-                            <TextBlock Text="{StaticResource StrUserLblTitle}" Margin="0,0,0,2"/>
-                            <TextBox x:Name="TxtUserTitle" Height="25" Margin="0,0,0,5" Padding="2"/>
-                            <Button x:Name="BtnUserSetOrg" Content="{StaticResource StrUserBtnSetOrg}" Height="25" Margin="0,0,0,10" Background="#6F42C1" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                            <Button x:Name="BtnUserSetOrg" Command="{Binding SetOrganizationCommand}" Content="{StaticResource StrUserBtnSetOrg}" Height="25" Margin="0,0,0,10" Background="#6F42C1" Foreground="White" BorderThickness="0" Cursor="Hand"/>
                         </StackPanel>
                     </Expander>
                     

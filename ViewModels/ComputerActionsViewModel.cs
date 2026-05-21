@@ -84,7 +84,11 @@ namespace AdminInfoTools.ViewModels
             Application.Current.Dispatcher.Invoke(() => Logs.Add($"[{DateTime.Now:HH:mm:ss}] {msg}"));
             _logger.LogComputerAction(msg);
         }
-        private void AppendOutput(string msg) => Application.Current.Dispatcher.Invoke(() => OutputText += msg + Environment.NewLine);
+        private void AppendOutput(string msg)
+        {
+            Application.Current.Dispatcher.Invoke(() => OutputText += msg + Environment.NewLine);
+            _logger.LogComputerActionDetailed(msg);
+        }
 
         public void StartTerminalSession(bool usePowerShell = true)
         {
