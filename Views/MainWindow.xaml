@@ -275,7 +275,7 @@
                 </Grid.RowDefinitions>
 
                 <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,15">
-                    <TextBlock Text="Target Path (Local or UNC):" Foreground="White" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,0"/>
+                    <TextBlock Text="Target Path (Local or UNC):" Foreground="Black" VerticalAlignment="Center" FontWeight="Bold" Margin="0,0,10,0"/>
                     
                     <TextBox x:Name="TxtNtfsPath" Text="{Binding TargetPath, UpdateSourceTrigger=PropertyChanged}" 
                             Foreground="Black" Width="400" Height="25" VerticalContentAlignment="Center" Margin="0,0,10,0"/>
@@ -286,7 +286,7 @@
 
                 <DataGrid x:Name="NtfsDataGrid" Grid.Row="1" ItemsSource="{Binding Permissions}" SelectedItem="{Binding SelectedPermission}" AutoGenerateColumns="True" IsReadOnly="True" AlternatingRowBackground="#F0F0F0" Foreground="Black" HeadersVisibility="Column" Margin="0,0,0,15"/>
 
-                <GroupBox Grid.Row="2" Header="Modify Permissions" Foreground="White" BorderBrush="#3E3E42" Padding="10">
+                <GroupBox Grid.Row="2" Header="Modify Permissions" Foreground="Black" BorderBrush="#3E3E42" Padding="10">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
@@ -298,24 +298,42 @@
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
-                        <TextBlock Text="User/Group (e.g., DOMAIN\User):" Foreground="White" Grid.Row="0" Grid.Column="0" Margin="0,0,10,5" VerticalAlignment="Center"/>
+                        <TextBlock Text="User/Group (e.g., DOMAIN\User):" Foreground="Black" Grid.Row="0" Grid.Column="0" Margin="0,0,10,5" VerticalAlignment="Top" Padding="0,5,0,0"/>
                         <Grid Grid.Row="0" Grid.Column="1" Margin="0,0,15,5">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
                             
                             <TextBox x:Name="TxtNtfsIdentity" Text="{Binding TargetIdentities, UpdateSourceTrigger=PropertyChanged}" 
                                     Foreground="{Binding IdentityForeground}" 
-                                    Grid.Column="0" Height="60" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" ToolTip="Enter multiple users/groups separated by commas, semicolons, or new lines."/>
+                                    Grid.Row="0" Grid.Column="0" Height="60" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" ToolTip="Enter multiple users/groups separated by commas, semicolons, or new lines."/>
                                     
-                            <Button x:Name="BtnNtfsCheckName" Command="{Binding CheckNameCommand}" Grid.Column="1" VerticalAlignment="Top" Content="Check Name" Height="25" Margin="5,0,0,0" Padding="10,0" Background="#17A2B8" Foreground="White" BorderThickness="0" Cursor="Hand"/>
-                            <Button x:Name="BtnNtfsLoadFile" Command="{Binding LoadIdentitiesFileCommand}" Grid.Column="2" VerticalAlignment="Top" Content="Load File" Height="25" Margin="5,0,0,0" Padding="10,0" Background="#6C757D" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                            <Button x:Name="BtnNtfsCheckName" Command="{Binding CheckNameCommand}" Grid.Row="0" Grid.Column="1" VerticalAlignment="Top" Content="Check Name" Height="25" Margin="5,0,0,0" Padding="10,0" Background="#17A2B8" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                            <Button x:Name="BtnNtfsLoadFile" Command="{Binding LoadIdentitiesFileCommand}" Grid.Row="0" Grid.Column="2" VerticalAlignment="Top" Content="Load File" Height="25" Margin="5,0,0,0" Padding="10,0" Background="#6C757D" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                            
+                            <ListBox ItemsSource="{Binding IdentitySuggestions}" SelectedItem="{Binding SelectedSuggestion}"
+                                     Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,5,0,0" MaxHeight="80" 
+                                     Visibility="{Binding HasSuggestions, Converter={StaticResource BoolToVis}}"
+                                     DisplayMemberPath="SuggestionText"
+                                     Background="#FFF8DC" BorderBrush="#17A2B8" BorderThickness="1">
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="Foreground" Value="Black"/>
+                                        <Setter Property="Cursor" Value="Hand"/>
+                                        <Setter Property="Padding" Value="5,2"/>
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                            </ListBox>
                         </Grid>
                         
                         <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,5,0,0">
-                            <TextBlock Text="Rights:" Foreground="White" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBlock Text="Rights:" Foreground="Black" VerticalAlignment="Center" Margin="0,0,10,0"/>
                             
                             <ComboBox x:Name="CmbNtfsRights" ItemsSource="{Binding AvailableRights}" SelectedItem="{Binding SelectedRight}" Width="150" Height="25" Margin="0,0,15,0" Foreground="Black">
                                 <ComboBox.ItemContainerStyle>
@@ -325,7 +343,7 @@
                                 </ComboBox.ItemContainerStyle>
                             </ComboBox>
                             
-                            <TextBlock Text="Type:" Foreground="White" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBlock Text="Type:" Foreground="Black" VerticalAlignment="Center" Margin="0,0,10,0"/>
                             
                             <ComboBox x:Name="CmbNtfsAccessType" ItemsSource="{Binding AvailableAccessTypes}" SelectedItem="{Binding SelectedAccessType}" Width="100" Height="25" Margin="0,0,15,0" Foreground="Black">
                                 <ComboBox.ItemContainerStyle>
@@ -334,6 +352,12 @@
                                     </Style>
                                 </ComboBox.ItemContainerStyle>
                             </ComboBox>
+
+                            <CheckBox x:Name="ChkTemporary" IsChecked="{Binding IsTemporaryPermission}" Content="Temporary" Foreground="Black" VerticalAlignment="Center" Margin="10,0,10,0"/>
+                            <StackPanel Orientation="Horizontal" Visibility="{Binding IsTemporaryPermission, Converter={StaticResource BoolToVis}}" VerticalAlignment="Center">
+                                <TextBox Text="{Binding TemporaryDurationHours, UpdateSourceTrigger=PropertyChanged}" Width="30" Height="25" VerticalContentAlignment="Center" Margin="0,0,5,0"/>
+                                <TextBlock Text="Hours" Foreground="Black" VerticalAlignment="Center"/>
+                            </StackPanel>
                         </StackPanel>
 
                         <StackPanel Grid.Row="0" Grid.RowSpan="2" Grid.Column="2" Orientation="Vertical" VerticalAlignment="Center">
@@ -343,7 +367,6 @@
                     </Grid>
                 </GroupBox>
             </Grid>
-
             <Grid x:Name="ViewComputerActions" Visibility="Collapsed">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="280"/> 

@@ -4,6 +4,8 @@ using System.IO;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using AdminInfoTools.Models;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace AdminInfoTools.Services
 {
@@ -11,11 +13,15 @@ namespace AdminInfoTools.Services
     {
         private readonly LogService _logger;
         private readonly ActiveDirectoryService _adService;
+        private readonly TemporaryPermissionTracker _tempPermissionTracker;
 
         public NtfsManagementService(LogService logger, ActiveDirectoryService adService = null)
         {
             _logger = logger;
             _adService = adService;
+            
+            // Initialize the tracking mechanism for time-restricted permissions
+            _tempPermissionTracker = new TemporaryPermissionTracker(this);
         }
 
         public List<FilePermissionRule> GetPermissions(string targetPath)
@@ -73,14 +79,20 @@ namespace AdminInfoTools.Services
             return rulesList;
         }
 
-        public void AddPermission(string targetPath, string identity, FileSystemRights rights, AccessControlType accessType)
+        private SecurityIdentifier ResolveIdentity(string identity)
         {
-            _logger.LogAdOperation("NtfsAddPerm", targetPath, "STARTED", $"{identity} - {rights}");
-            
             SecurityIdentifier sid = null;
             if (_adService != null)
             {
                 sid = _adService.GetSidFromIdentity(identity);
+                if (sid == null)
+                {
+                    var suggestions = _adService.FindSimilarIdentities(identity);
+                    if (suggestions != null && suggestions.Count > 0)
+                    {
+                        throw new IdentityAmbiguousException(identity, suggestions);
+                    }
+                }
             }
             else
             {
@@ -91,6 +103,14 @@ namespace AdminInfoTools.Services
             {
                 throw new Exception($"Could not resolve identity '{identity}' to a valid SID.");
             }
+            return sid;
+        }
+
+        public void AddPermission(string targetPath, string identity, FileSystemRights rights, AccessControlType accessType)
+        {
+            _logger.LogAdOperation("NtfsAddPerm", targetPath, "STARTED", $"{identity} - {rights}");
+            
+            SecurityIdentifier sid = ResolveIdentity(identity);
 
             if (File.Exists(targetPath))
             {
@@ -116,20 +136,7 @@ namespace AdminInfoTools.Services
         {
             _logger.LogAdOperation("NtfsRemovePerm", targetPath, "STARTED", $"{identity} - {rights}");
             
-            SecurityIdentifier sid = null;
-            if (_adService != null)
-            {
-                sid = _adService.GetSidFromIdentity(identity);
-            }
-            else
-            {
-                try { sid = (SecurityIdentifier)new NTAccount(identity).Translate(typeof(SecurityIdentifier)); } catch { }
-            }
-
-            if (sid == null)
-            {
-                throw new Exception($"Could not resolve identity '{identity}' to a valid SID.");
-            }
+            SecurityIdentifier sid = ResolveIdentity(identity);
 
             if (File.Exists(targetPath))
             {
@@ -160,18 +167,9 @@ namespace AdminInfoTools.Services
 
             foreach (var identity in identities)
             {
-                SecurityIdentifier sid = null;
-                if (_adService != null)
+                try
                 {
-                    sid = _adService.GetSidFromIdentity(identity);
-                }
-                else
-                {
-                    try { sid = (SecurityIdentifier)new NTAccount(identity).Translate(typeof(SecurityIdentifier)); } catch { }
-                }
-
-                if (sid != null)
-                {
+                    SecurityIdentifier sid = ResolveIdentity(identity);
                     FileSystemAccessRule accessRule;
                     if (isFile)
                         accessRule = new FileSystemAccessRule(sid, rights, InheritanceFlags.None, PropagationFlags.None, accessType);
@@ -185,9 +183,14 @@ namespace AdminInfoTools.Services
                     security.AddAccessRule(accessRule);
                     changesMade = true;
                 }
-                else
+                catch (IdentityAmbiguousException ex)
                 {
-                    _logger.LogAdOperation("NtfsAddBatch", targetPath, "WARNING", $"Could not resolve SID for {identity}");
+                    _logger.LogAdOperation("NtfsAddBatch", targetPath, "WARNING", $"Ambiguous identity '{identity}'. Suggestions: {string.Join(", ", ex.Suggestions)}");
+                    throw; // Rethrowing allows the UI to prompt the user
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogAdOperation("NtfsAddBatch", targetPath, "WARNING", $"Failed to process identity {identity}: {ex.Message}");
                 }
             }
 
@@ -211,18 +214,9 @@ namespace AdminInfoTools.Services
 
             foreach (var identity in identities)
             {
-                SecurityIdentifier sid = null;
-                if (_adService != null)
+                try
                 {
-                    sid = _adService.GetSidFromIdentity(identity);
-                }
-                else
-                {
-                    try { sid = (SecurityIdentifier)new NTAccount(identity).Translate(typeof(SecurityIdentifier)); } catch { }
-                }
-
-                if (sid != null)
-                {
+                    SecurityIdentifier sid = ResolveIdentity(identity);
                     FileSystemAccessRule accessRule;
                     if (isFile)
                         accessRule = new FileSystemAccessRule(sid, rights, InheritanceFlags.None, PropagationFlags.None, accessType);
@@ -236,9 +230,14 @@ namespace AdminInfoTools.Services
                     security.RemoveAccessRule(accessRule);
                     changesMade = true;
                 }
-                else
+                catch (IdentityAmbiguousException ex)
                 {
-                    _logger.LogAdOperation("NtfsRemoveBatch", targetPath, "WARNING", $"Could not resolve SID for {identity}");
+                    _logger.LogAdOperation("NtfsRemoveBatch", targetPath, "WARNING", $"Ambiguous identity '{identity}'. Suggestions: {string.Join(", ", ex.Suggestions)}");
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogAdOperation("NtfsRemoveBatch", targetPath, "WARNING", $"Failed to process identity {identity}: {ex.Message}");
                 }
             }
 
@@ -250,6 +249,34 @@ namespace AdminInfoTools.Services
                     new DirectoryInfo(targetPath).SetAccessControl((DirectorySecurity)security);
             }
             _logger.LogAdOperation("NtfsRemoveBatch", targetPath, "SUCCESS");
+        }
+
+        /// <summary>
+        /// Grants a user permission to a file or folder for a limited time, after which the permission is automatically revoked.
+        /// </summary>
+        public void AddTemporaryPermission(string targetPath, string identity, FileSystemRights rights, AccessControlType accessType, DateTime expirationTime)
+        {
+            // 1. Add the permission using the existing method
+            AddPermission(targetPath, identity, rights, accessType);
+
+            // 2. Register the permission for removal
+            var task = new TemporaryPermissionTask
+            {
+                Id = Guid.NewGuid(),
+                TargetPath = targetPath,
+                Identity = identity,
+                Rights = rights,
+                AccessType = accessType,
+                ExpirationTime = expirationTime
+            };
+
+            _tempPermissionTracker.TrackPermission(task);
+            _logger.LogAdOperation("NtfsAddTempPerm", targetPath, "SUCCESS", $"Will expire at {expirationTime}");
+        }
+
+        public void AddTemporaryPermission(string targetPath, string identity, FileSystemRights rights, AccessControlType accessType, TimeSpan duration)
+        {
+            AddTemporaryPermission(targetPath, identity, rights, accessType, DateTime.Now.Add(duration));
         }
     }
 }

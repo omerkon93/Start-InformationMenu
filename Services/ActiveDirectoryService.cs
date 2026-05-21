@@ -236,6 +236,108 @@ namespace AdminInfoTools.Services
             return sidString; // Fallback to returning the raw SID if it fails completely
         }
 
+        // --- FUZZY IDENTITY MATCHING ---
+        public List<string> FindSimilarIdentities(string query)
+        {
+            var suggestions = new List<string>();
+            if (string.IsNullOrWhiteSpace(query)) return suggestions;
+
+            string searchName = query.Contains("\\") ? query.Split('\\').Last() : query;
+
+            try
+            {
+                using (var context = GetDomainContext())
+                {
+                    string ldapPath = $"LDAP://{_adConfig.TargetServer}";
+                    using (DirectoryEntry rootEntry = new DirectoryEntry(ldapPath, DomainUser, DomainPass))
+                    using (DirectorySearcher searcher = new DirectorySearcher(rootEntry))
+                    {
+                        // Build a fuzzy wildcard pattern based on the first few alphanumeric characters
+                        string cleanName = new string(searchName.Where(char.IsLetterOrDigit).ToArray());
+                        
+                        // Take up to 4 chars to prevent overly broad/slow LDAP queries without interspersing wildcards
+                        string prefix = new string(cleanName.Take(4).ToArray());
+                        string wildcardPattern = string.IsNullOrEmpty(prefix) ? $"*{searchName}*" : $"*{prefix}*";
+
+                        // Filter matches users and groups using ANR, direct wildcard, and the fuzzy wildcard pattern
+                        searcher.Filter = $"(&(|(objectClass=user)(objectClass=group))(|(anr={searchName}*)(samAccountName=*{searchName}*)(samAccountName={wildcardPattern})(name={wildcardPattern})))";
+                        searcher.PropertiesToLoad.Add("samAccountName");
+                        searcher.PropertiesToLoad.Add("name");
+                        searcher.SizeLimit = 100; // Fetch up to 100 to find the best in-memory Levenshtein matches
+
+                        var allResults = new List<(string SamAccountName, string Name, string Formatted, int Distance)>();
+
+                        using (SearchResultCollection results = searcher.FindAll())
+                        {
+                            foreach (SearchResult result in results)
+                            {
+                                string samAccountName = result.Properties["samAccountName"].Count > 0 ? result.Properties["samAccountName"][0].ToString() : string.Empty;
+                                string name = result.Properties["name"].Count > 0 ? result.Properties["name"][0].ToString() : string.Empty;
+
+                                if (!string.IsNullOrEmpty(samAccountName))
+                                {
+                                    string suggestion = $"{_adConfig.TargetServer}\\{samAccountName}";
+                                    
+                                    // Clean strings for a more accurate Levenshtein comparison (ignoring dashes/spaces)
+                                    string cleanSam = new string(samAccountName.Where(char.IsLetterOrDigit).ToArray()).ToLower();
+                                    string cleanSearch = cleanName.ToLower();
+
+                                    int distance = ComputeLevenshteinDistance(cleanSearch, cleanSam);
+                                    
+                                    // Prevent duplicate accounts
+                                    if (!allResults.Any(x => x.SamAccountName.Equals(samAccountName, StringComparison.OrdinalIgnoreCase)))
+                                    {
+                                        allResults.Add((samAccountName, name, suggestion, distance));
+                                    }
+                                }
+                            }
+                        }
+
+                        // Order by the lowest Levenshtein distance and return the top 5
+                        var closestMatches = allResults
+                            .OrderBy(x => x.Distance)
+                            .Take(5)
+                            .ToList();
+                        
+                        foreach (var match in closestMatches)
+                        {
+                            string displayName = string.IsNullOrWhiteSpace(match.Name) ? "" : $" ({match.Name})";
+                            suggestions.Add($"{match.Formatted}{displayName}");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogAdOperation("FuzzySearch", query, "ERROR", ex.Message);
+            }
+
+            return suggestions;
+        }
+
+        private int ComputeLevenshteinDistance(string s, string t)
+        {
+            if (string.IsNullOrEmpty(s)) return string.IsNullOrEmpty(t) ? 0 : t.Length;
+            if (string.IsNullOrEmpty(t)) return s.Length;
+
+            int[] v0 = new int[t.Length + 1];
+            int[] v1 = new int[t.Length + 1];
+
+            for (int i = 0; i < v0.Length; i++) v0[i] = i;
+
+            for (int i = 0; i < s.Length; i++)
+            {
+                v1[0] = i + 1;
+                for (int j = 0; j < t.Length; j++)
+                {
+                    int cost = (char.ToLower(s[i]) == char.ToLower(t[j])) ? 0 : 1;
+                    v1[j + 1] = Math.Min(Math.Min(v1[j] + 1, v0[j + 1] + 1), v0[j] + cost);
+                }
+                for (int j = 0; j < v0.Length; j++) v0[j] = v1[j];
+            }
+            return v1[t.Length];
+        }
+
         public bool IsValidAdIdentity(string identityName)
         {
             // 1. Strip domain prefix if present (e.g., "DOMAIN\Username" -> "Username")

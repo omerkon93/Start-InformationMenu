@@ -49,6 +49,27 @@ namespace AdminInfoTools.ViewModels
             set { _identityForeground = value; OnPropertyChanged(); }
         }
 
+        public ObservableCollection<IdentitySuggestion> IdentitySuggestions { get; } = new ObservableCollection<IdentitySuggestion>();
+
+        public bool HasSuggestions => IdentitySuggestions.Count > 0;
+
+        private IdentitySuggestion _selectedSuggestion;
+        public IdentitySuggestion SelectedSuggestion
+        {
+            get => _selectedSuggestion;
+            set
+            {
+                _selectedSuggestion = value;
+                OnPropertyChanged();
+                if (value != null)
+                {
+                    ApplySuggestion(value);
+                    _selectedSuggestion = null;
+                    OnPropertyChanged(nameof(SelectedSuggestion));
+                }
+            }
+        }
+
         public ObservableCollection<FilePermissionRule> Permissions { get; } = new ObservableCollection<FilePermissionRule>();
 
         private FilePermissionRule _selectedPermission;
@@ -95,6 +116,20 @@ namespace AdminInfoTools.ViewModels
         {
             get => _selectedAccessType;
             set { _selectedAccessType = value; OnPropertyChanged(); }
+        }
+
+        private bool _isTemporaryPermission;
+        public bool IsTemporaryPermission
+        {
+            get => _isTemporaryPermission;
+            set { _isTemporaryPermission = value; OnPropertyChanged(); }
+        }
+
+        private int _temporaryDurationHours = 2;
+        public int TemporaryDurationHours
+        {
+            get => _temporaryDurationHours;
+            set { _temporaryDurationHours = value; OnPropertyChanged(); }
         }
 
         // --- Commands ---
@@ -195,16 +230,48 @@ namespace AdminInfoTools.ViewModels
                 return;
             }
 
-            var invalidIdentities = identities.Where(identity => !_adService.IsValidAdIdentity(identity)).ToList();
+            var invalidIdentities = new List<string>();
+            var suggestionsText = new List<string>();
+            IdentitySuggestions.Clear();
+
+            foreach (var identity in identities)
+            {
+                if (!_adService.IsValidAdIdentity(identity))
+                {
+                    invalidIdentities.Add(identity);
+                    var suggestions = _adService.FindSimilarIdentities(identity);
+                    if (suggestions != null && suggestions.Count > 0)
+                    {
+                        suggestionsText.Add($"'{identity}' not found. Did you mean:\n  - {string.Join("\n  - ", suggestions)}");
+                        foreach (var sug in suggestions)
+                        {
+                            string actual = sug.Contains(" (") ? sug.Substring(0, sug.IndexOf(" (")) : sug;
+                            IdentitySuggestions.Add(new IdentitySuggestion 
+                            { 
+                                OriginalQuery = identity, 
+                                SuggestionText = $"For '{identity}': {sug}", 
+                                ActualIdentity = actual 
+                            });
+                        }
+                    }
+                    else
+                    {
+                        suggestionsText.Add($"'{identity}' not found.");
+                    }
+                }
+            }
+
+            OnPropertyChanged(nameof(HasSuggestions));
 
             if (invalidIdentities.Count == 0)
             {
                 IdentityForeground = Brushes.LightGreen;
+                MessageBox.Show("All identities are valid.", "Check Name Success", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             else
             {
                 IdentityForeground = Brushes.Red;
-                MessageBox.Show($"The following identities were not found in Active Directory or as local built-in accounts:\n\n{string.Join("\n", invalidIdentities)}", "Check Name Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"The following identities were not found:\n\n{string.Join("\n\n", suggestionsText)}\n\nYou can click on a suggestion below the text box to auto-fill it.", "Check Name Failed", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -217,7 +284,32 @@ namespace AdminInfoTools.ViewModels
                 var invalidIdentities = identities.Where(id => !_adService.IsValidAdIdentity(id)).ToList();
                 if (invalidIdentities.Count > 0)
                 {
-                    MessageBox.Show($"The following identities are not valid:\n\n{string.Join("\n", invalidIdentities)}\n\nPlease use the 'Check Name' button to verify before adding permissions.", "Invalid Identities", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    var suggestionsText = new List<string>();
+                    IdentitySuggestions.Clear();
+                    foreach (var id in invalidIdentities)
+                    {
+                        var suggestions = _adService.FindSimilarIdentities(id);
+                        if (suggestions != null && suggestions.Count > 0)
+                        {
+                            suggestionsText.Add($"'{id}' not found. Did you mean:\n  - {string.Join("\n  - ", suggestions)}");
+                            foreach (var sug in suggestions)
+                            {
+                                string actual = sug.Contains(" (") ? sug.Substring(0, sug.IndexOf(" (")) : sug;
+                                IdentitySuggestions.Add(new IdentitySuggestion 
+                                { 
+                                    OriginalQuery = id, 
+                                    SuggestionText = $"For '{id}': {sug}", 
+                                    ActualIdentity = actual 
+                                });
+                            }
+                        }
+                        else
+                        {
+                            suggestionsText.Add($"'{id}' not found.");
+                        }
+                    }
+                    OnPropertyChanged(nameof(HasSuggestions));
+                    MessageBox.Show($"The following identities are not valid:\n\n{string.Join("\n\n", suggestionsText)}\n\nPlease click on a suggestion below the text box to auto-fill it, or use the 'Check Name' button.", "Invalid Identities", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
             }
@@ -240,11 +332,32 @@ namespace AdminInfoTools.ViewModels
 
             try
             {
-                if (isAdd) _ntfsService.AddPermissionsBatch(TargetPath, identities, SelectedRight, SelectedAccessType);
-                else _ntfsService.RemovePermissionsBatch(TargetPath, identities, SelectedRight, SelectedAccessType);
+                if (isAdd)
+                {
+                    if (IsTemporaryPermission && TemporaryDurationHours > 0)
+                    {
+                        foreach (var identity in identities)
+                        {
+                            _ntfsService.AddTemporaryPermission(TargetPath, identity, SelectedRight, SelectedAccessType, TimeSpan.FromHours(TemporaryDurationHours));
+                        }
+                    }
+                    else
+                    {
+                        _ntfsService.AddPermissionsBatch(TargetPath, identities, SelectedRight, SelectedAccessType);
+                    }
+                }
+                else 
+                {
+                    _ntfsService.RemovePermissionsBatch(TargetPath, identities, SelectedRight, SelectedAccessType);
+                }
 
                 MessageBox.Show($"Permission successfully {(isAdd ? "added" : "removed")}.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
                 ExecuteLoadPermissions(); // Refresh grid
+            }
+            catch (IdentityAmbiguousException ex)
+            {
+                MessageBox.Show(ex.Message, "Ambiguous Identity", MessageBoxButton.OK, MessageBoxImage.Warning);
+                UpdateStatus?.Invoke("Error: Ambiguous Identity.");
             }
             catch (Exception ex)
             {
@@ -259,5 +372,44 @@ namespace AdminInfoTools.ViewModels
             return TargetIdentities.Split(new[] { ',', ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
                                    .Select(i => i.Trim()).Where(i => !string.IsNullOrWhiteSpace(i)).ToList();
         }
+
+        private void ApplySuggestion(IdentitySuggestion suggestion)
+        {
+            if (string.IsNullOrWhiteSpace(TargetIdentities)) return;
+            
+            var separators = new[] { ',', ';', '\r', '\n' };
+            var parts = TargetIdentities.Split(separators, StringSplitOptions.None).ToList();
+            
+            bool replaced = false;
+            for (int i = 0; i < parts.Count; i++)
+            {
+                if (parts[i].Trim().Equals(suggestion.OriginalQuery, StringComparison.OrdinalIgnoreCase))
+                {
+                    parts[i] = parts[i].Replace(parts[i].Trim(), suggestion.ActualIdentity);
+                    replaced = true;
+                }
+            }
+            
+            if (replaced)
+            {
+                TargetIdentities = string.Join("\r\n", parts.Where(p => !string.IsNullOrWhiteSpace(p.Trim())));
+            }
+            
+            var toRemove = IdentitySuggestions.Where(s => s.OriginalQuery == suggestion.OriginalQuery).ToList();
+            foreach (var item in toRemove)
+            {
+                IdentitySuggestions.Remove(item);
+            }
+            OnPropertyChanged(nameof(HasSuggestions));
+            
+            if (!HasSuggestions) IdentityForeground = Brushes.Black;
+        }
+    }
+
+    public class IdentitySuggestion
+    {
+        public string OriginalQuery { get; set; }
+        public string SuggestionText { get; set; }
+        public string ActualIdentity { get; set; }
     }
 }
