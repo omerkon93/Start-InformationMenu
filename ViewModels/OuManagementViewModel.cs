@@ -10,7 +10,7 @@ namespace AdminInfoTools.ViewModels
 {
     public class OuManagementViewModel : ViewModelBase
     {
-        private readonly ActiveDirectoryService _adService;
+        private readonly IADOuService _ouService;
         public Action<string> UpdateStatus { get; set; }
 
         private ObservableCollection<OuNode> _ouHierarchy;
@@ -26,9 +26,9 @@ namespace AdminInfoTools.ViewModels
         public ICommand DeleteOuCommand { get; }
         public ICommand MoveOuCommand { get; }
 
-        public OuManagementViewModel(ActiveDirectoryService adService)
+        public OuManagementViewModel(IADOuService ouService)
         {
-            _adService = adService;
+            _ouService = ouService;
             RefreshCommand = new RelayCommand(_ => ExecuteRefresh());
             CreateOuCommand = new RelayCommand(param => ExecuteCreate(param as OuNode));
             RenameOuCommand = new RelayCommand(param => ExecuteRename(param as OuNode));
@@ -38,9 +38,9 @@ namespace AdminInfoTools.ViewModels
 
         private void ExecuteRefresh()
         {
-            if (_adService == null) return;
+            if (_ouService == null) return;
             UpdateStatus?.Invoke("Refreshing OU Hierarchy...");
-            OuHierarchy = _adService.GetOuHierarchy();
+            OuHierarchy = _ouService.GetOuHierarchy();
             UpdateStatus?.Invoke("OU Hierarchy refreshed.");
         }
 
@@ -50,7 +50,7 @@ namespace AdminInfoTools.ViewModels
             string newOuName = DialogHelper.ShowInputDialog($"Enter the name for the new Sub-OU under '{parentNode.Name}':", "Create Sub-OU");
             if (!string.IsNullOrWhiteSpace(newOuName))
             {
-                if (_adService.CreateOu(parentNode.DistinguishedName, newOuName)) ExecuteRefresh();
+                if (_ouService.CreateOu(parentNode.DistinguishedName, newOuName)) ExecuteRefresh();
                 else MessageBox.Show("Failed to create OU. Please check logs for details.", "Create Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -61,7 +61,7 @@ namespace AdminInfoTools.ViewModels
             string newOuName = DialogHelper.ShowInputDialog($"Enter the new name for '{targetNode.Name}':", "Rename OU");
             if (!string.IsNullOrWhiteSpace(newOuName))
             {
-                if (_adService.RenameOu(targetNode.DistinguishedName, newOuName)) ExecuteRefresh();
+                if (_ouService.RenameOu(targetNode.DistinguishedName, newOuName)) ExecuteRefresh();
                 else MessageBox.Show("Failed to rename OU. Please check logs for details.", "Rename Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -72,7 +72,7 @@ namespace AdminInfoTools.ViewModels
             var confirm = MessageBox.Show($"Are you sure you want to delete the OU '{targetNode.Name}' and ALL of its contents?\n\nThis action cannot be undone!", "Confirm Deletion", MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (confirm == MessageBoxResult.Yes)
             {
-                if (_adService.DeleteOu(targetNode.DistinguishedName)) ExecuteRefresh();
+                if (_ouService.DeleteOu(targetNode.DistinguishedName)) ExecuteRefresh();
                 else MessageBox.Show("Failed to delete OU. Please check logs for details.", "Delete Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -95,7 +95,7 @@ namespace AdminInfoTools.ViewModels
                     return;
                 }
 
-                if (_adService.MoveOu(sourceNode.DistinguishedName, destinationDn)) ExecuteRefresh();
+                if (_ouService.MoveOu(sourceNode.DistinguishedName, destinationDn)) ExecuteRefresh();
                 else MessageBox.Show("Failed to move OU. Check logs for details.", "Move Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿using System;
+﻿﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -186,15 +186,21 @@ namespace AdminInfoTools.Views
                     _adService.DomainUser = _settingsViewModel.UseNativeCredentials ? null : _credentialService.Username;
                     _adService.DomainPass = _settingsViewModel.UseNativeCredentials ? null : _credentialService.Password;
 
-                    this.DataContext = new UserManagementViewModel(_adService);
+                    // Initialize the extracted AD sub-services
+                    var logger = new LogService();
+                    IADComputerService computerService = new ADComputerService(_adService, logger);
+                    IADUserService userService = new ADUserService(_adService, logger);
+                    IADOuService ouService = new ADOuService(_adService, logger);
+
+                    this.DataContext = new UserManagementViewModel(userService);
                     
-                    _computerViewModel = new ComputerManagementViewModel(_adService, _configService, _credentialService, _systemInfoService)
+                    _computerViewModel = new ComputerManagementViewModel(computerService, _configService, _credentialService, _systemInfoService)
                     {
                         UpdateStatus = (msg) => StatusText.Text = msg
                     };
                     ViewComputerManagement.DataContext = _computerViewModel;
 
-                    _ouViewModel = new OuManagementViewModel(_adService)
+                    _ouViewModel = new OuManagementViewModel(ouService)
                     {
                         UpdateStatus = (msg) => StatusText.Text = msg
                     };
@@ -207,7 +213,7 @@ namespace AdminInfoTools.Views
                     };
                     ViewNtfsManagement.DataContext = _ntfsViewModel;
                     
-                    _computerActionsViewModel = new ComputerActionsViewModel(_adService, _configService, _credentialService)
+                    _computerActionsViewModel = new ComputerActionsViewModel(computerService, _configService, _credentialService)
                     {
                         UpdateStatus = (msg) => StatusText.Text = msg
                     };

@@ -19,7 +19,7 @@ namespace AdminInfoTools.ViewModels
 
     public class UserManagementViewModel : ViewModelBase
     {
-        private readonly ActiveDirectoryService _adService;
+        private readonly IADUserService _userService;
         private readonly LogService _logger;
 
         // 1. Properties (Data bound to the UI)
@@ -57,16 +57,16 @@ namespace AdminInfoTools.ViewModels
         public ICommand SetOrganizationCommand { get; }
 
         // 3. Constructor
-        public UserManagementViewModel(ActiveDirectoryService adService)
+        public UserManagementViewModel(IADUserService userService)
         {
-            _adService = adService;
+            _userService = userService;
             _logger = new LogService();
             GetUserInfoCommand = new RelayCommand(async (param) => await ExecuteGetUserInfoAsync());
             
             ExportUsersCommand = new RelayCommand(ExecuteExportUsers);
-            UnlockUserCommand = new RelayCommand((param) => ProcessUserAction("Unlock", u => _adService.UnlockUserAccount(u)));
-            EnableUserCommand = new RelayCommand((param) => ProcessUserAction("Enable", u => _adService.SetUserStatus(u, true)));
-            DisableUserCommand = new RelayCommand((param) => ProcessUserAction("Disable", u => _adService.SetUserStatus(u, false)));
+            UnlockUserCommand = new RelayCommand((param) => ProcessUserAction("Unlock", u => _userService.UnlockUserAccount(u)));
+            EnableUserCommand = new RelayCommand((param) => ProcessUserAction("Enable", u => _userService.SetUserStatus(u, true)));
+            DisableUserCommand = new RelayCommand((param) => ProcessUserAction("Disable", u => _userService.SetUserStatus(u, false)));
             SetOrganizationCommand = new RelayCommand((param) => ExecuteSetOrganization());
         }
 
@@ -85,7 +85,7 @@ namespace AdminInfoTools.ViewModels
 
             foreach (var user in usersToQuery)
             {
-                var result = await Task.Run(() => _adService.GetAdUserInfo(user));
+                var result = await Task.Run(() => _userService.GetAdUserInfo(user));
                 UserResults.Add(result);
             }
 
@@ -135,9 +135,9 @@ namespace AdminInfoTools.ViewModels
                     ProcessUserAction($"SetOrg ({selectedField})", user =>
                     {
                         if (selectedField == UserUpdateableFields.Department)
-                            return _adService.SetUserOrganization(user, newValue, null);
+                            return _userService.SetUserOrganization(user, newValue, null);
                         else
-                            return _adService.SetUserOrganization(user, null, newValue);
+                            return _userService.SetUserOrganization(user, null, newValue);
                     });
                 }
             }

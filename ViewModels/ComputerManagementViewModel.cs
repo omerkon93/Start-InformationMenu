@@ -15,7 +15,7 @@ namespace AdminInfoTools.ViewModels
 {
     public class ComputerManagementViewModel : ViewModelBase
     {
-        private readonly ActiveDirectoryService _adService;
+        private readonly IADComputerService _computerService;
         private readonly ConfigurationService _configService;
         private readonly CredentialService _credentialService;
         private readonly SystemInfoService _systemInfoService;
@@ -78,9 +78,9 @@ namespace AdminInfoTools.ViewModels
         public ICommand RunScriptCommand { get; }
         public ICommand RunCommandCommand { get; }
 
-        public ComputerManagementViewModel(ActiveDirectoryService adService, ConfigurationService configService, CredentialService credentialService, SystemInfoService systemInfoService)
+        public ComputerManagementViewModel(IADComputerService computerService, ConfigurationService configService, CredentialService credentialService, SystemInfoService systemInfoService)
         {
-            _adService = adService; _configService = configService; _credentialService = credentialService; _systemInfoService = systemInfoService;
+            _computerService = computerService; _configService = configService; _credentialService = credentialService; _systemInfoService = systemInfoService;
             _logger = new LogService();
 
             LoadFromOuCommand = new RelayCommand(_ => ExecuteLoadFromOu());
@@ -90,10 +90,10 @@ namespace AdminInfoTools.ViewModels
             GetAdInfoCommand = new RelayCommand(async _ => await ExecuteGetAdInfo());
             ExportCommand = new RelayCommand(_ => ExecuteExport());
             CreateCommand = new RelayCommand(_ => ExecuteCreate());
-            EnableCommand = new RelayCommand(_ => ProcessAdAction("Enable", host => _adService.SetComputerStatus(host, true)));
-            DisableCommand = new RelayCommand(_ => ProcessAdAction("Disable", host => _adService.SetComputerStatus(host, false)));
-            MoveCommand = new RelayCommand(_ => ProcessAdAction("Move", host => _adService.MoveComputerObject(host, SelectedTargetOuValue, $"Moved to Restricted OU on {DateTime.Now.ToShortDateString()}")));
-            SetDescriptionCommand = new RelayCommand(_ => ProcessAdAction("Set Description", host => _adService.SetComputerDescription(host, AdDescription)));
+            EnableCommand = new RelayCommand(_ => ProcessAdAction("Enable", host => _computerService.SetComputerStatus(host, true)));
+            DisableCommand = new RelayCommand(_ => ProcessAdAction("Disable", host => _computerService.SetComputerStatus(host, false)));
+            MoveCommand = new RelayCommand(_ => ProcessAdAction("Move", host => _computerService.MoveComputerObject(host, SelectedTargetOuValue, $"Moved to Restricted OU on {DateTime.Now.ToShortDateString()}")));
+            SetDescriptionCommand = new RelayCommand(_ => ProcessAdAction("Set Description", host => _computerService.SetComputerDescription(host, AdDescription)));
             DeleteCommand = new RelayCommand(_ => ExecuteDelete());
             RunScriptCommand = new RelayCommand(async _ => await ExecuteRunScript());
             RunCommandCommand = new RelayCommand(async _ => await ExecuteRunCommand());
@@ -140,7 +140,7 @@ namespace AdminInfoTools.ViewModels
             if (hosts.Length == 0) return;
             UpdateStatus?.Invoke("Querying Active Directory Computers... Please wait.");
             var results = new ObservableCollection<AdComputerInfoResult>();
-            foreach (var pc in hosts) results.Add(await Task.Run(() => _adService.GetAdComputerInfo(pc)));
+            foreach (var pc in hosts) results.Add(await Task.Run(() => _computerService.GetAdComputerInfo(pc)));
             CurrentResults = results;
             UpdateStatus?.Invoke($"AD Query complete. Processed {hosts.Length} computers.");
         }
@@ -168,7 +168,7 @@ namespace AdminInfoTools.ViewModels
             foreach (var host in hostsToCreate)
             {
                 LogMessage($"Attempting to Create {host}...");
-                LogMessage(_adService.CreateComputerObject(host, SelectedComputerTypeKey) ? $"SUCCESS: Created {host}" : $"FAILED: Could not create {host}.");
+                LogMessage(_computerService.CreateComputerObject(host, SelectedComputerTypeKey) ? $"SUCCESS: Created {host}" : $"FAILED: Could not create {host}.");
             }
         }
 
@@ -180,7 +180,7 @@ namespace AdminInfoTools.ViewModels
             string expected = hosts.Length <= 20 ? hosts.Length.ToString() : (hosts.Length <= 100 ? $"Delete {hosts.Length}" : $"CONFIRM-{new Random().Next(1000, 9999)}");
             string input = DialogHelper.ShowInputDialog($"You are about to delete {hosts.Length} objects.\n\nType '{expected}' to confirm.", "Confirm Deletion");
             
-            if (string.Equals(input, expected, StringComparison.OrdinalIgnoreCase)) ProcessAdAction("Delete", host => _adService.DeleteComputerObject(host));
+            if (string.Equals(input, expected, StringComparison.OrdinalIgnoreCase)) ProcessAdAction("Delete", host => _computerService.DeleteComputerObject(host));
             else LogMessage("Deletion cancelled by user.");
         }
 
@@ -252,7 +252,7 @@ namespace AdminInfoTools.ViewModels
                 MessageBox.Show("Please select or enter an OU to load computers from.", "Missing Input", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-            TargetHostnamesText = string.Join("\r\n", _adService.GetComputersFromOu(_configService.CurrentSettings.ActiveDirectory.DomainName, SelectedLoadOuValue, _credentialService.Username, _credentialService.Password)); 
+            TargetHostnamesText = string.Join("\r\n", _computerService.GetComputersFromOu(_configService.CurrentSettings.ActiveDirectory.DomainName, SelectedLoadOuValue, _credentialService.Username, _credentialService.Password)); 
         }
     }
 }

@@ -15,7 +15,7 @@ namespace AdminInfoTools.ViewModels
 {
     public class ComputerActionsViewModel : ViewModelBase, IDisposable
     {
-        private readonly ActiveDirectoryService _adService;
+        private readonly IADComputerService _computerService;
         private readonly ConfigurationService _configService;
         private readonly CredentialService _credentialService;
         private readonly LogService _logger;
@@ -59,9 +59,9 @@ namespace AdminInfoTools.ViewModels
         private Process _terminalProcess;
         private StreamWriter _terminalInput;
 
-        public ComputerActionsViewModel(ActiveDirectoryService adService, ConfigurationService configService, CredentialService credentialService)
+        public ComputerActionsViewModel(IADComputerService computerService, ConfigurationService configService, CredentialService credentialService)
         {
-            _adService = adService;
+            _computerService = computerService;
             _configService = configService;
             _credentialService = credentialService;
             _logger = new LogService();
@@ -172,7 +172,7 @@ namespace AdminInfoTools.ViewModels
         private void ExecuteLoadFromOu()
         {
             if (string.IsNullOrWhiteSpace(SelectedLoadOuValue)) { MessageBox.Show("Please select an OU.", "Missing Input", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
-            TargetHostnamesText = string.Join("\r\n", _adService.GetComputersFromOu(_configService.CurrentSettings.ActiveDirectory.DomainName, SelectedLoadOuValue, _credentialService.Username, _credentialService.Password));
+            TargetHostnamesText = string.Join("\r\n", _computerService.GetComputersFromOu(_configService.CurrentSettings.ActiveDirectory.DomainName, SelectedLoadOuValue, _credentialService.Username, _credentialService.Password));
         }
 
         private async Task ExecuteTerminalSession(bool usePowerShell)
