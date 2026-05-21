@@ -159,8 +159,7 @@ namespace AdminInfoTools.ViewModels
         {
             try
             {
-                Directory.CreateDirectory(@"C:\Projects\Start-InformationMenu\cs\Logs\ComputerObjectList\");
-                File.WriteAllText($@"C:\Projects\Start-InformationMenu\cs\Logs\ComputerObjectList\Hosts_{DateTime.Now:yyyyMMdd_HHmmss}.txt", TargetHostnamesText);
+                _logger.SaveTextLog(LogCategory.ComputerObjectList, TargetHostnamesText, "Hosts");
                 LogMessage("Hostnames saved successfully.");
             }
             catch (Exception ex) { MessageBox.Show($"Failed to save hostnames: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error); }

@@ -38,5 +38,23 @@ namespace AdminInfoTools.Services
                 return false;
             }
         }
+
+        public bool SaveConfiguration(string filePath)
+        {
+            if (CurrentSettings == null) return false;
+            
+            try
+            {
+                var options = new JsonSerializerOptions { WriteIndented = true };
+                string jsonString = JsonSerializer.Serialize(CurrentSettings, options);
+                File.WriteAllText(filePath, jsonString);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error saving JSON: {ex.Message}");
+                return false;
+            }
+        }
     }
 }

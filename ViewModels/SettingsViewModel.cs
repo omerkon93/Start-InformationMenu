@@ -272,10 +272,10 @@ namespace AdminInfoTools.ViewModels
                     settings.ExternalTools.DamewarePath = EditDameware;
                 }
 
-                var options = new JsonSerializerOptions { WriteIndented = true };
-                string jsonString = JsonSerializer.Serialize(settings, options);
-
-                File.WriteAllText(SettingsPath, jsonString);
+                if (!_configService.SaveConfiguration(SettingsPath))
+                {
+                    throw new IOException("Failed to serialize or write the configuration file.");
+                }
 
                 MessageBox.Show("Configuration successfully saved to disk!", "Save Complete", MessageBoxButton.OK, MessageBoxImage.Information);
             }

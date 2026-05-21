@@ -1,44 +1,53 @@
 using System;
+using System.Collections.Concurrent;
 using System.IO;
 
 namespace AdminInfoTools.Services
 {
+    public enum LogCategory
+    {
+        ActiveDirectoryOperations,
+        OrganizationalUnitOperations,
+        ComputerActions,
+        ComputerObjectGenerated,
+        ComputerObjectList,
+        ComputerObjectQuery
+    }
+
     public class LogService
     {
-        private readonly string _logDirectory;
-        private readonly string _logFilePath;
-        private readonly string _ouLogDirectory;
-        private readonly string _ouLogFilePath;
-        private readonly string _actionLogDirectory;
-        private readonly string _actionLogFilePath;
+        private readonly string _baseLogPath;
         private static readonly object _lockObj = new object();
+        private readonly ConcurrentDictionary<LogCategory, string> _sessionLogFiles = new ConcurrentDictionary<LogCategory, string>();
 
         public LogService()
         {
-            string logPath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\Logs"));
-            _logDirectory = Path.Combine(logPath, "ActiveDirectoryOperations");
-            _ouLogDirectory = Path.Combine(logPath, "OrganizationalUnitOperations");
-            _actionLogDirectory = Path.Combine(logPath, "ComputerActions");
+            _baseLogPath = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\Logs"));
+        }
 
-            if (!Directory.Exists(_logDirectory))
+        public string GetLogDirectory(LogCategory category)
+        {
+            string dir = Path.Combine(_baseLogPath, category.ToString());
+            if (!Directory.Exists(dir))
             {
-                Directory.CreateDirectory(_logDirectory);
+                Directory.CreateDirectory(dir);
             }
+            return dir;
+        }
 
-            if (!Directory.Exists(_ouLogDirectory))
+        public string GetSessionLogFilePath(LogCategory category)
+        {
+            return _sessionLogFiles.GetOrAdd(category, cat => 
             {
-                Directory.CreateDirectory(_ouLogDirectory);
-            }
-            
-            if (!Directory.Exists(_actionLogDirectory))
-            {
-                Directory.CreateDirectory(_actionLogDirectory);
-            }
+                string dir = GetLogDirectory(cat);
+                return Path.Combine(dir, $"{cat}_{DateTime.Now:yyyyMMdd_HHmmss}.log");
+            });
+        }
 
-            // Creates a daily rollover log file (e.g., ActiveDirectoryOperations_20260426.log)
-            _logFilePath = Path.Combine(_logDirectory, $"ActiveDirectoryOperations_{DateTime.Now:yyyyMMdd_HHmmss}.log");
-            _ouLogFilePath = Path.Combine(_ouLogDirectory, $"OrganizationalUnitOperations_{DateTime.Now:yyyyMMdd_HHmmss}.log");
-            _actionLogFilePath = Path.Combine(_actionLogDirectory, $"ComputerActions_{DateTime.Now:yyyyMMdd_HHmmss}.log");
+        public string GetNewFilePath(LogCategory category, string prefix, string extension = ".txt")
+        {
+            string dir = GetLogDirectory(category);
+            return Path.Combine(dir, $"{prefix}_{DateTime.Now:yyyyMMdd_HHmmss}{extension}");
         }
 
         /// <summary>
@@ -46,26 +55,8 @@ namespace AdminInfoTools.Services
         /// </summary>
         public void LogAdOperation(string operation, string target, string status, string details = "")
         {
-            lock (_lockObj) // Thread-safe for async AD calls
-            {
-                try
-                {
-                    string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-                    string logMessage = $"[{timestamp}] | OP: {operation,-15} | TARGET: {target,-20} | STATUS: {status,-10}";
-                    
-                    if (!string.IsNullOrEmpty(details))
-                    {
-                        logMessage += $" | DETAILS: {details}";
-                    }
-                    
-                    File.AppendAllText(_logFilePath, logMessage + Environment.NewLine);
-                }
-                catch (Exception ex)
-                {
-                    // Failsafe: prevents a logging failure from crashing the main AD operation
-                    System.Diagnostics.Debug.WriteLine($"Logging failed: {ex.Message}");
-                }
-            }
+            string filePath = GetSessionLogFilePath(LogCategory.ActiveDirectoryOperations);
+            AppendToLog(filePath, operation, target, status, details);
         }
 
         /// <summary>
@@ -73,20 +64,17 @@ namespace AdminInfoTools.Services
         /// </summary>
         public void LogOuOperation(string operation, string target, string status, string details = "")
         {
+            string adFilePath = GetSessionLogFilePath(LogCategory.ActiveDirectoryOperations);
+            string ouFilePath = GetSessionLogFilePath(LogCategory.OrganizationalUnitOperations);
+            
+            string logMessage = BuildLogMessage(operation, target, status, details);
+            
             lock (_lockObj) // Thread-safe for async AD calls
             {
                 try
                 {
-                    string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-                    string logMessage = $"[{timestamp}] | OP: {operation,-15} | TARGET: {target,-20} | STATUS: {status,-10}";
-                    
-                    if (!string.IsNullOrEmpty(details))
-                    {
-                        logMessage += $" | DETAILS: {details}";
-                    }
-                    
-                    File.AppendAllText(_logFilePath, logMessage + Environment.NewLine);
-                    File.AppendAllText(_ouLogFilePath, logMessage + Environment.NewLine);
+                    File.AppendAllText(adFilePath, logMessage);
+                    File.AppendAllText(ouFilePath, logMessage);
                 }
                 catch (Exception ex)
                 {
@@ -100,18 +88,61 @@ namespace AdminInfoTools.Services
         /// </summary>
         public void LogComputerAction(string message)
         {
+            string filePath = GetSessionLogFilePath(LogCategory.ComputerActions);
             lock (_lockObj)
             {
                 try
                 {
                     string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-                    File.AppendAllText(_actionLogFilePath, $"[{timestamp}] | {message}{Environment.NewLine}");
+                    File.AppendAllText(filePath, $"[{timestamp}] | {message}{Environment.NewLine}");
                 }
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"Logging failed: {ex.Message}");
                 }
             }
+        }
+
+        private string BuildLogMessage(string operation, string target, string status, string details)
+        {
+            string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            string logMessage = $"[{timestamp}] | OP: {operation,-15} | TARGET: {target,-20} | STATUS: {status,-10}";
+            
+            if (!string.IsNullOrEmpty(details))
+            {
+                logMessage += $" | DETAILS: {details}";
+            }
+            return logMessage + Environment.NewLine;
+        }
+
+        private void AppendToLog(string filePath, string operation, string target, string status, string details)
+        {
+            string logMessage = BuildLogMessage(operation, target, status, details);
+            lock (_lockObj)
+            {
+                try
+                {
+                    File.AppendAllText(filePath, logMessage);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Logging failed: {ex.Message}");
+                }
+            }
+        }
+
+        public string SaveBulkLog(LogCategory category, string[] lines, string prefix)
+        {
+            string filePath = GetNewFilePath(category, prefix);
+            File.WriteAllLines(filePath, lines);
+            return filePath;
+        }
+
+        public string SaveTextLog(LogCategory category, string content, string prefix)
+        {
+            string filePath = GetNewFilePath(category, prefix);
+            File.WriteAllText(filePath, content);
+            return filePath;
         }
     }
 }

@@ -19,6 +19,7 @@ namespace AdminInfoTools.ViewModels
         private readonly ConfigurationService _configService;
         private readonly CredentialService _credentialService;
         private readonly SystemInfoService _systemInfoService;
+        private readonly LogService _logger;
 
         public Action<string> UpdateStatus { get; set; }
 
@@ -80,6 +81,7 @@ namespace AdminInfoTools.ViewModels
         public ComputerManagementViewModel(ActiveDirectoryService adService, ConfigurationService configService, CredentialService credentialService, SystemInfoService systemInfoService)
         {
             _adService = adService; _configService = configService; _credentialService = credentialService; _systemInfoService = systemInfoService;
+            _logger = new LogService();
 
             LoadFromOuCommand = new RelayCommand(_ => ExecuteLoadFromOu());
             LoadHostsCommand = new RelayCommand(_ => ExecuteLoadHosts());
@@ -154,8 +156,7 @@ namespace AdminInfoTools.ViewModels
                 if (hostsToCreate.Length == 0) { MessageBox.Show("Could not find a numeric sequence in the starting hostname.", "Format Error", MessageBoxButton.OK, MessageBoxImage.Error); return; }
                 try
                 {
-                    Directory.CreateDirectory(@"C:\Projects\Start-InformationMenu\cs\Logs\ComputerObjectGenerated\");
-                    string fullPath = FileHelper.SaveLinesToFile(hostsToCreate, $@"C:\Projects\Start-InformationMenu\cs\Logs\ComputerObjectGenerated\ComputerObjectGenerated-{DateTime.Now:yyyyMMdd_HHmmss}.txt");
+                    string fullPath = _logger.SaveBulkLog(LogCategory.ComputerObjectGenerated, hostsToCreate, "ComputerObjectGenerated");
                     MessageBox.Show($"Generated {hostsToCreate.Length} hostnames.\n\nSaved to:\n{fullPath}", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
                 } catch { }
             }
@@ -189,7 +190,7 @@ namespace AdminInfoTools.ViewModels
             if (hosts.Length == 0) return;
             if (new OpenFileDialog { Filter = "Scripts (*.bat;*.ps1)|*.bat;*.ps1" }.ShowDialog() == true)
             {
-                var svc = new RemoteExecutionService(new LogService(), _configService.CurrentSettings?.ExternalTools?.PsExecPath ?? "psexec.exe", _credentialService.Username, _credentialService.Password);
+                var svc = new RemoteExecutionService(_logger, _configService.CurrentSettings?.ExternalTools?.PsExecPath ?? "psexec.exe", _credentialService.Username, _credentialService.Password);
                 foreach (string pc in hosts)
                 {
                     UpdateStatus?.Invoke($"Running script on {pc}...");
@@ -204,7 +205,7 @@ namespace AdminInfoTools.ViewModels
         {
             var hosts = GetAdHostnames();
             if (hosts.Length == 0 || string.IsNullOrWhiteSpace(CommandText)) return;
-            var svc = new RemoteExecutionService(new LogService(), _configService.CurrentSettings?.ExternalTools?.PsExecPath ?? "psexec.exe", _credentialService.Username, _credentialService.Password);
+            var svc = new RemoteExecutionService(_logger, _configService.CurrentSettings?.ExternalTools?.PsExecPath ?? "psexec.exe", _credentialService.Username, _credentialService.Password);
             foreach (string pc in hosts)
             {
                 UpdateStatus?.Invoke($"Running command on {pc}...");
@@ -217,8 +218,7 @@ namespace AdminInfoTools.ViewModels
         {
             try
             {
-                Directory.CreateDirectory(@"C:\Projects\Start-InformationMenu\cs\Logs\ComputerObjectQuery\");
-                string path = $@"C:\Projects\Start-InformationMenu\cs\Logs\ComputerObjectQuery\Query_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+                string path = _logger.GetNewFilePath(LogCategory.ComputerObjectQuery, "Query", ".csv");
                 if (CurrentResults is IEnumerable<ComputerInfoResult> w) CsvExportService.Export(w, path);
                 else if (CurrentResults is IEnumerable<AdComputerInfoResult> a) CsvExportService.Export(a, path);
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = path, UseShellExecute = true });
@@ -234,7 +234,17 @@ namespace AdminInfoTools.ViewModels
             }
         }
         
-        private void ExecuteSaveHosts() { File.WriteAllText($@"C:\Projects\Start-InformationMenu\cs\Logs\ComputerObjectList\Hosts_{DateTime.Now:yyyyMMdd}.txt", TargetHostnamesText); }
+        private void ExecuteSaveHosts() 
+        { 
+            try
+            {
+                _logger.SaveTextLog(LogCategory.ComputerObjectList, TargetHostnamesText, "Hosts");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to save hostnames: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
         private void ExecuteLoadFromOu() 
         { 
             if (string.IsNullOrWhiteSpace(SelectedLoadOuValue))

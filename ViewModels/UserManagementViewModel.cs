@@ -5,6 +5,8 @@ using AdminInfoTools.Models;
 using AdminInfoTools.Services;
 using System.Linq;
 using System;
+using System.Diagnostics;
+using System.Windows;
 using AdminInfoTools.Helpers;
 
 namespace AdminInfoTools.ViewModels
@@ -12,6 +14,7 @@ namespace AdminInfoTools.ViewModels
     public class UserManagementViewModel : ViewModelBase
     {
         private readonly ActiveDirectoryService _adService;
+        private readonly LogService _logger;
 
         // 1. Properties (Data bound to the UI)
         public ObservableCollection<AdUserInfoResult> UserResults { get; set; } = new ObservableCollection<AdUserInfoResult>();
@@ -50,6 +53,7 @@ namespace AdminInfoTools.ViewModels
         public UserManagementViewModel(ActiveDirectoryService adService)
         {
             _adService = adService;
+            _logger = new LogService();
             GetUserInfoCommand = new RelayCommand(async (param) => await ExecuteGetUserInfoAsync());
             
             ExportUsersCommand = new RelayCommand(ExecuteExportUsers);
@@ -106,7 +110,16 @@ namespace AdminInfoTools.ViewModels
 
         private void ExecuteExportUsers(object obj)
         {
-            // Your previous CSV export logic goes here, referencing 'UserResults' directly.
+            try
+            {
+                if (UserResults == null || UserResults.Count == 0) return;
+                
+                // Reusing ComputerObjectQuery category, but prefixing with "UserQuery"
+                string path = _logger.GetNewFilePath(LogCategory.ComputerObjectQuery, "UserQuery", ".csv");
+                CsvExportService.Export(UserResults, path);
+                Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true });
+            }
+            catch (Exception ex) { MessageBox.Show($"Export failed: {ex.Message}", "Export Error", MessageBoxButton.OK, MessageBoxImage.Error); }
         }
     }
 }
